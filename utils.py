@@ -6,8 +6,8 @@ from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader, PdfWriter
 
 
-azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
-azure_ocr_key = os.getenv("AZURE_SECRET_KEY")
+azure_ocr_endpoint = "https://patent-drafting-ocr.cognitiveservices.azure.com/"
+azure_ocr_key = "c6cf1be381754599820ea962b5005ec4"
 
 
 def read_text_file(file_path: str) -> str:
