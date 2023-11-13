@@ -92,7 +92,7 @@ def generative_layer(file_text: str, question: str) -> str:
         openai.api_type = "open_ai"
         openai.api_base = "https://api.openai.com/v1"
         openai.api_version = None
-        openai.api_key = "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"
+        openai.api_key = "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"
         response = openai.ChatCompletion.create(
             model="gpt-4-1106-preview",
             messages=prompt,
