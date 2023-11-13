@@ -1,0 +1,9 @@
+TALK_TO_FILE:
+  engine: right-co-pilot-gpt4-8k
+  engine_32k: right-co-pilot-32k
+  temperature: 0.5
+  max_tokens: 400
+  top_p: 1.0
+  frequency_penalty: 0.0
+  presense_penalty: 0.0
+  stop_sequences: ["<END>"]
