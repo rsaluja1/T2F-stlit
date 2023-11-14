@@ -47,10 +47,10 @@ def generative_layer(file_text: str, question: str) -> str:
     token_count = token_counter(file_text, "gpt-4")
 
     if token_count <= 30000:
-        openai.api_type = "azure"
-        openai.api_base = "https://copilot-gpt4.openai.azure.com"
-        openai.api_version = "2023-07-01-preview"
-        openai.api_key = "e660f3b54a5649858353d641a0bdb0d0"
+        openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
+        openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
+        openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
+        openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
 
         response = openai.ChatCompletion.create(
             engine=hp["model_name"],
@@ -89,10 +89,10 @@ def generative_layer(file_text: str, question: str) -> str:
             yield full_reply_content
 
     elif token_count > 30000 and token_count < 120000:
-        openai.api_type = "open_ai"
-        openai.api_base = "https://api.openai.com/v1"
+        openai.api_type = st.secrets["OPENAI_API_TYPE"]
+        openai.api_base = st.secrets["OPENAI_API_BASE"]
         openai.api_version = None
-        openai.api_key = "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"
+        openai.api_key = st.secrets["OPENAI_API_KEY"]
         response = openai.ChatCompletion.create(
             model="gpt-4-1106-preview",
             messages=prompt,
