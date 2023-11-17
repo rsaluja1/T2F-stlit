@@ -4,8 +4,7 @@ import openai
 import base64
 import asyncio
 import streamlit as st
-from utils import read_pdf, token_counter
-
+from utils import read_pdf, token_counter, docx_to_pdf
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 
@@ -40,6 +39,62 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+@st.cache_data
+def save_file(uploaded_file):
+    uploaded_file_name = uploaded_file.name
+    file_path = f"{temp_folder_path}/" + uploaded_file_name
+    with open(file_path, "wb") as temp_file:
+        temp_file.write(uploaded_file.getvalue())
+
+    if uploaded_file_name.endswith(".docx"):
+        file_path = docx_to_pdf(file_path)
+    else:
+        pass
+    return file_path
+
+
+@st.cache_data
+def displayPDF(file_path):
+    # Read local PDF file as bytes:
+    with open(file_path, "rb") as file:
+        bytes_data = file.read()
+
+    # Convert bytes to base64 for embedding
+    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
+
+    # Create an iframe to display the PDF
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
+
+    # Display the PDF
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
+# def displayPDF(uploaded_file):
+#     # Read file as bytes:
+#     bytes_data = uploaded_file.getvalue()
+#     st.write(uploaded_file.getvalue())
+#     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
+#     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
+#     st.markdown(pdf_display, unsafe_allow_html=True)
+
+
+# sidebar
+with st.sidebar:
+    st.title("🤗💬 Talk to File")
+    # Upload PDF file
+    uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf", "docx"])
+    if uploaded_pdf is not None:
+        saved_file_path = save_file(uploaded_pdf)
+        st.markdown(
+            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
+            unsafe_allow_html=True,
+        )
+        displayPDF(saved_file_path)
+
+    # add_vertical_space(20)
+    # st.write("Made by RightHub AI 🔥")
 
 
 def generative_layer(file_text: str, question: str) -> str:
@@ -123,39 +178,6 @@ def generative_layer(file_text: str, question: str) -> str:
 
 
 @st.cache_data
-def displayPDF(uploaded_file):
-    # Read file as bytes:
-    bytes_data = uploaded_file.getvalue()
-    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
-
-# sidebar
-with st.sidebar:
-    st.title("🤗💬 Talk to File")
-    # Upload PDF file
-    uploaded_pdf = st.file_uploader("Upload your PDF", type="pdf")
-    if uploaded_pdf is not None:
-        st.markdown(
-            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-            unsafe_allow_html=True,
-        )
-        displayPDF(uploaded_pdf)
-
-    # add_vertical_space(20)
-    # st.write("Made by RightHub AI 🔥")
-
-
-@st.cache_data
-def save_file(uploaded_file):
-    file_path = f"{temp_folder_path}/" + uploaded_file.name
-    with open(file_path, "wb") as temp_file:
-        temp_file.write(uploaded_file.getvalue())
-    return file_path
-
-
-@st.cache_data
 def pdf_reader(file_path):
     pdf_text = read_pdf(file_path)
     return pdf_text
@@ -202,5 +224,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # os.system(f"streamlit run /Users/rohitsaluja/Documents/Github-silo-ai/RightHub/talk-to-file/app/streamlit/demo.py")
     main()
