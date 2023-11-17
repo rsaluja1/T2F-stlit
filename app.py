@@ -4,9 +4,10 @@ import openai
 import base64
 import asyncio
 import streamlit as st
-from app.utils.utils import read_pdf, token_counter, docx_to_pdf
-from app.ai.prompt_creator import prompt_creator
-from app.ai.hyperparams_handler import hyperparam_handler
+from utils import read_pdf, token_counter
+
+from prompt_creator import prompt_creator
+from hyperparams_handler import hyperparam_handler
 
 
 temp_path = "temp_data"
@@ -41,71 +42,15 @@ st.markdown(
 )
 
 
-@st.cache_data
-def save_file(uploaded_file):
-    uploaded_file_name = uploaded_file.name
-    file_path = f"{temp_folder_path}/" + uploaded_file_name
-    with open(file_path, "wb") as temp_file:
-        temp_file.write(uploaded_file.getvalue())
-
-    if uploaded_file_name.endswith(".docx"):
-        file_path = docx_to_pdf(file_path)
-    else:
-        pass
-    return file_path
-
-
-@st.cache_data
-def displayPDF(file_path):
-    # Read local PDF file as bytes:
-    with open(file_path, "rb") as file:
-        bytes_data = file.read()
-
-    # Convert bytes to base64 for embedding
-    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
-
-    # Create an iframe to display the PDF
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
-
-    # Display the PDF
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
-
-# def displayPDF(uploaded_file):
-#     # Read file as bytes:
-#     bytes_data = uploaded_file.getvalue()
-#     st.write(uploaded_file.getvalue())
-#     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
-#     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
-#     st.markdown(pdf_display, unsafe_allow_html=True)
-
-
-# sidebar
-with st.sidebar:
-    st.title("🤗💬 Talk to File")
-    # Upload PDF file
-    uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf", "docx"])
-    if uploaded_pdf is not None:
-        saved_file_path = save_file(uploaded_pdf)
-        st.markdown(
-            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-            unsafe_allow_html=True,
-        )
-        displayPDF(saved_file_path)
-
-    # add_vertical_space(20)
-    # st.write("Made by RightHub AI 🔥")
-
-
 def generative_layer(file_text: str, question: str) -> str:
     hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
     token_count = token_counter(file_text, "gpt-4")
 
     if token_count <= 30000:
-        openai.api_type = os.environ.get("AZURE_OPENAI_API_TYPE")
-        openai.api_base = os.environ.get("AZURE_OPENAI_API_BASE")
-        openai.api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
-        openai.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+        openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
+        openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
+        openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
+        openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
 
         response = openai.ChatCompletion.create(
             engine=hp["model_name"],
@@ -144,10 +89,10 @@ def generative_layer(file_text: str, question: str) -> str:
             yield full_reply_content
 
     elif token_count > 30000 and token_count < 120000:
-        openai.api_type = os.environ.get("OPENAI_API_TYPE")
-        openai.api_base = os.environ.get("OPENAI_API_BASE")
+        openai.api_type = st.secrets["OPENAI_API_TYPE"]
+        openai.api_base = st.secrets["OPENAI_API_BASE"]
         openai.api_version = None
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+        openai.api_key = st.secrets["OPENAI_API_KEY"]
         response = openai.ChatCompletion.create(
             model="gpt-4-1106-preview",
             messages=prompt,
@@ -175,6 +120,39 @@ def generative_layer(file_text: str, question: str) -> str:
 
     else:
         st.error("Your file is too big. Supply a smaller file.")
+
+
+@st.cache_data
+def displayPDF(uploaded_file):
+    # Read file as bytes:
+    bytes_data = uploaded_file.getvalue()
+    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
+# sidebar
+with st.sidebar:
+    st.title("🤗💬 Talk to File")
+    # Upload PDF file
+    uploaded_pdf = st.file_uploader("Upload your PDF", type="pdf")
+    if uploaded_pdf is not None:
+        st.markdown(
+            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
+            unsafe_allow_html=True,
+        )
+        displayPDF(uploaded_pdf)
+
+    # add_vertical_space(20)
+    # st.write("Made by RightHub AI 🔥")
+
+
+@st.cache_data
+def save_file(uploaded_file):
+    file_path = f"{temp_folder_path}/" + uploaded_file.name
+    with open(file_path, "wb") as temp_file:
+        temp_file.write(uploaded_file.getvalue())
+    return file_path
 
 
 @st.cache_data
@@ -224,4 +202,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # os.system(f"streamlit run /Users/rohitsaluja/Documents/Github-silo-ai/RightHub/talk-to-file/app/streamlit/demo.py")
     main()

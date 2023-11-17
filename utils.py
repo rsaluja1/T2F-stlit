@@ -1,14 +1,13 @@
 import os
 import yaml
 import tiktoken
-import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader, PdfWriter
 
 
-azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
-azure_ocr_key = os.getenv("AZURE_SECRET_KEY")
+azure_ocr_endpoint = "https://patent-drafting-ocr.cognitiveservices.azure.com/"
+azure_ocr_key = "c6cf1be381754599820ea962b5005ec4"
 
 
 def read_text_file(file_path: str) -> str:
@@ -76,28 +75,3 @@ def azure_ocr(input_file_path: str):
     results_dict = ocr_results.to_dict()
 
     return results_dict["content"]
-
-
-def docx_to_pdf(input_path: str) -> str:
-    output_directory = os.path.dirname(
-        input_path
-    )  # Extracts the directory from the input path
-    output_filename = os.path.splitext(os.path.basename(input_path))[0] + ".pdf"
-    output_path = os.path.join(output_directory, output_filename)
-
-    try:
-        subprocess.run(
-            [
-                "soffice",
-                "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                output_directory,
-                input_path,
-            ],
-            check=True,
-        )
-        return output_path  # Return the full path of the output PDF
-    except subprocess.CalledProcessError:
-        return None
