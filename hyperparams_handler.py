@@ -7,12 +7,12 @@ dirname = os.path.dirname(os.path.abspath(__file__))
 hyper_path = os.path.join(dirname, hyperparams_path)
 
 
-def hyperparam_handler(file_text: str):
-    token_count = token_counter(file_text, model_name="gpt-4")
+def hyperparam_handler(chunk_count: str):
+    #token_count = token_counter(chunk_text, model_name="gpt-4")
     hp = read_yaml_file(hyper_path)["TALK_TO_FILE"]
 
     hp_dict = {
-        "model_name": hp["engine"] if token_count <= 6000 else hp["engine_32k"],
+        "model_name": hp["engine"] if chunk_count <= 6000 else hp["engine_32k"],
         "temperature": hp["temperature"],
         "max_tokens": hp["max_tokens"],
         "top_p": hp["top_p"],

@@ -4,7 +4,7 @@ import openai
 import base64
 import asyncio
 import streamlit as st
-from utils import read_pdf, token_counter, docx_to_pdf
+from utils import read_pdf, token_counter, docx_to_pdf, data_chunker, indexer
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 
@@ -80,6 +80,12 @@ def displayPDF(file_path):
 #     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
+
+@st.cache_data
+def chunker_indexer(file_path):
+    pages = data_chunker(file_path)
+    indexer(pages)
+
 # sidebar
 with st.sidebar:
     st.title("🤗💬 Talk to File")
@@ -91,63 +97,82 @@ with st.sidebar:
             "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
             unsafe_allow_html=True,
         )
-        displayPDF(saved_file_path)
+        with st.spinner("Uploading and Reading PDF..."):
+            chunker_indexer(saved_file_path)
+            displayPDF(saved_file_path)
 
     # add_vertical_space(20)
     # st.write("Made by RightHub AI 🔥")
 
 
-def generative_layer(file_text: str, question: str) -> str:
-    hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
-    token_count = token_counter(file_text, "gpt-4")
+def generative_layer(question: str) -> str:
+    #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
+    prompt, chunk_tokens = prompt_creator(question)
+    hp = hyperparam_handler(chunk_tokens)
+    #token_count = token_counter(file_text, "gpt-4")
 
-    if token_count <= 30000:
-        openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
-        openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
-        openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
-        openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
+    # if chunk_tokens <= 30000:
+    #     print(os.environ.get("AZURE_OPENAI_API_TYPE"), os.environ.get("AZURE_OPENAI_API_BASE"),os.environ.get("AZURE_OPENAI_API_VERSION"), os.environ.get("AZURE_OPENAI_API_KEY"))
 
-        response = openai.ChatCompletion.create(
-            engine=hp["model_name"],
-            messages=prompt,
-            temperature=hp["temperature"],
-            max_tokens=hp["max_tokens"],
-            top_p=hp["top_p"],
-            frequency_penalty=hp["frequency_penalty"],
-            presence_penalty=hp["presense_penalty"],
-            stop=hp["stop_sequences"],
-            stream=True,
-        )
 
-        collected_messages = []
 
-        for chunk in response:
-            chunk_message = (
-                chunk["choices"][0]["delta"] if chunk["choices"] else ""
-            )  # extract the message
+    #     #openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
+    #     openai.api_type = os.environ.get("AZURE_OPENAI_API_TYPE")
+    #     #openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
+    #     openai.api_base = os.environ.get("AZURE_OPENAI_API_BASE")
+    #     #openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
+    #     openai.api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
+    #     #openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
+    #     openai.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
 
-            # if not isinstance(chunk_message, str):
-            #     time.sleep(0.04)
-            #     yield chunk_message.get("content", "")
+    #     response = openai.ChatCompletion.create(
+    #         engine=hp["model_name"],
+    #         messages=prompt,
+    #         temperature=hp["temperature"],
+    #         max_tokens=hp["max_tokens"],
+    #         top_p=hp["top_p"],
+    #         frequency_penalty=hp["frequency_penalty"],
+    #         presence_penalty=hp["presense_penalty"],
+    #         stop=hp["stop_sequences"],
+    #         stream=True,
+    #     )
 
-            collected_messages.append(chunk_message)
+    #     collected_messages = []
 
-            full_reply_content = "".join(
-                [
-                    m.get("content", "")
-                    for m in collected_messages
-                    if not isinstance(m, str)
-                ]
-            )
+    #     for chunk in response:
+    #         chunk_message = (
+    #             chunk["choices"][0]["delta"] if chunk["choices"] else ""
+    #         )  # extract the message
 
-            time.sleep(0.02)
-            yield full_reply_content
+    #         # if not isinstance(chunk_message, str):
+    #         #     time.sleep(0.04)
+    #         #     yield chunk_message.get("content", "")
 
-    elif token_count > 30000 and token_count < 120000:
-        openai.api_type = st.secrets["OPENAI_API_TYPE"]
-        openai.api_base = st.secrets["OPENAI_API_BASE"]
+    #         collected_messages.append(chunk_message)
+
+    #         full_reply_content = "".join(
+    #             [
+    #                 m.get("content", "")
+    #                 for m in collected_messages
+    #                 if not isinstance(m, str)
+    #             ]
+    #         )
+
+    #         time.sleep(0.02)
+    #         yield full_reply_content
+
+    #elif chunk_tokens > 30000 and chunk_tokens < 120000:
+    if chunk_tokens <= 30000: 
+        
+        print(os.environ.get("OPENAI_API_TYPE"), os.environ.get("OPENAI_API_BASE"),os.environ.get("OPENAI_API_KEY"))
+        #openai.api_type = st.secrets["OPENAI_API_TYPE"]
+        openai.api_type = os.environ.get("OPENAI_API_TYPE")
+        #openai.api_base = st.secrets["OPENAI_API_BASE"]
+        openai.api_base = os.environ.get("OPENAI_API_BASE")
         openai.api_version = None
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
+        #openai.api_key = st.secrets["OPENAI_API_KEY"]
+        openai.api_key = os.environ.get("OPENAI_API_KEY")
+        
         response = openai.ChatCompletion.create(
             model="gpt-4-1106-preview",
             messages=prompt,
@@ -185,43 +210,71 @@ def pdf_reader(file_path):
 
 def main():
     if uploaded_pdf is not None:
-        with st.spinner("Uploading and Reading PDF..."):
-            file_path = save_file(uploaded_pdf)
-            pdf_text = pdf_reader(file_path)
-        token_count = token_counter(pdf_text, "gpt-4")
-        if token_count >= 120000:
-            st.error("Your file is too big. Please upload a smaller file.")
-        else:
-            if "messages" not in st.session_state:
+        #with st.spinner("Uploading and Reading PDF..."):
+            #file_path = save_file(uploaded_pdf)
+            #pdf_text = pdf_reader(file_path)
+            #pages = data_chunker(file_path)
+            #indexer(pages)
+
+        if "messages" not in st.session_state:
                 st.session_state.messages = []
 
-            if st.session_state.messages:
-                for message in st.session_state.messages:
-                    with st.chat_message(message["role"]):
-                        st.markdown(message["content"])
+        if st.session_state.messages:
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
 
-            if user_message := st.chat_input("Ask a question?"):
-                st.session_state.messages.append(
+        if user_message := st.chat_input("Ask a question?"):
+            st.session_state.messages.append(
                     {"role": "user", "content": user_message}
-                )
-                with st.chat_message("user"):
-                    st.markdown(user_message)
+            )
+            with st.chat_message("user"):
+                st.markdown(user_message)
 
-                with st.spinner("Generating Response"):
-                    with st.chat_message("assistant"):
-                        message_placeholder = st.empty()
-                        gen_iter = generative_layer(pdf_text, user_message)
+            with st.spinner("Generating Response"):
+                with st.chat_message("assistant"):
+                    message_placeholder = st.empty()
+                    gen_iter = generative_layer(user_message)
 
-                        for gen in gen_iter:
-                            message_placeholder.markdown(f"{gen}" + "|")
-                        message_placeholder.markdown(gen)
-                        st.session_state.messages.append(
-                            {"role": "assistant", "content": gen}
-                        )
+                    for gen in gen_iter:
+                        message_placeholder.markdown(f"{gen}" + "|")
+                    message_placeholder.markdown(gen)
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": gen}
+                    )    
     else:
         for key in st.session_state.keys():
             del st.session_state[key]
 
+            
 
+
+        #token_count = token_counter(pdf_text, "gpt-4")
+        #if token_count >= 120000:
+            #st.error("Your file is too big. Please upload a smaller file.")
+        #else:
+            
+
+            
+
+            # if user_message := st.chat_input("Ask a question?"):
+            #     st.session_state.messages.append(
+            #         {"role": "user", "content": user_message}
+            #     )
+            #     with st.chat_message("user"):
+            #         st.markdown(user_message)
+
+            #     with st.spinner("Generating Response"):
+            #         with st.chat_message("assistant"):
+            #             message_placeholder = st.empty()
+            #             gen_iter = generative_layer(pdf_text, user_message)
+
+            #             for gen in gen_iter:
+            #                 message_placeholder.markdown(f"{gen}" + "|")
+            #             message_placeholder.markdown(gen)
+            #             st.session_state.messages.append(
+            #                 {"role": "assistant", "content": gen}
+            #             )
+    
 if __name__ == "__main__":
     main()
