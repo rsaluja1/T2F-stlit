@@ -15,12 +15,14 @@ from langchain.embeddings import OpenAIEmbeddings
 
 
 
-azure_ocr_endpoint = "https://patent-drafting-ocr.cognitiveservices.azure.com/"
-azure_ocr_key = "c6cf1be381754599820ea962b5005ec4"
-#pinecone_api_key = os.environ.get("PINECONE_API_KEY")
-pinecone_api_key = "ac7df495-1f9e-47d8-84f3-c7daa5569b63"
-#pinecone_env = os.environ.get("PINECONE_ENV")
-pinecone_env = "eu-west4-gcp"
+# azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
+# azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
+# pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+# pinecone_env = os.environ.get("PINECONE_ENV")
+azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
+azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
+pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+pinecone_env = os.environ.get("PINECONE_ENV")
 
 pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
 index_name = 't2findex'

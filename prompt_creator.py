@@ -14,6 +14,8 @@ def prompt_creator(question: str):
     #     )
     retreived_chunks = retreiver(question)
     chunk_tokens = token_counter(retreived_chunks,model_name="gpt-4")
+    
+    
 
 
     for item in prompt:
