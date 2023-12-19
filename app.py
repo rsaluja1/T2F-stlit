@@ -81,7 +81,7 @@ def displayPDF(file_path):
 
 
 
-@st.cache_data
+#@st.cache_data
 def chunker_indexer(file_path):
     pages = data_chunker(file_path)
     indexer(pages)
