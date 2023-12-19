@@ -165,13 +165,13 @@ def generative_layer(question: str) -> str:
     if chunk_tokens <= 120000: 
         
         #print(os.environ.get("OPENAI_API_TYPE"), os.environ.get("OPENAI_API_BASE"),os.environ.get("OPENAI_API_KEY"))
-        openai.api_type = st.secrets["OPENAI_API_TYPE"]
-        #openai.api_type = os.environ.get("OPENAI_API_TYPE")
-        openai.api_base = st.secrets["OPENAI_API_BASE"]
-        #openai.api_base = os.environ.get("OPENAI_API_BASE")
+        #openai.api_type = st.secrets["OPENAI_API_TYPE"]
+        openai.api_type = os.environ.get("OPENAI_API_TYPE")
+        #openai.api_base = st.secrets["OPENAI_API_BASE"]
+        openai.api_base = os.environ.get("OPENAI_API_BASE")
         openai.api_version = None
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
-        #openai.api_key = os.environ.get("OPENAI_API_KEY")
+        #openai.api_key = st.secrets["OPENAI_API_KEY"]
+        openai.api_key = os.environ.get("OPENAI_API_KEY")
         
         response = openai.ChatCompletion.create(
             model="gpt-4-1106-preview",
