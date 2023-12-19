@@ -46,7 +46,7 @@ TALK_TO_FILE:
     content: Thanks! I will now use the DOCUMENT to answer your questions. What is your question?
 
   - role: assistant
-    content: <<user_question>>
+    content: <<user_question>>?
   
   - role: assistant
     content: "The answer to your question as per the DOCUMENT is as follows, answer:"

@@ -100,6 +100,8 @@ with st.sidebar:
         with st.spinner("Uploading and Reading PDF..."):
             chunker_indexer(saved_file_path)
             displayPDF(saved_file_path)
+    else:
+        st.cache_data.clear()
 
     # add_vertical_space(20)
     # st.write("Made by RightHub AI 🔥")
@@ -245,8 +247,6 @@ def main():
     else:
         for key in st.session_state.keys():
             del st.session_state[key]
-        displayPDF.clear()
-        chunker_indexer.clear()
 
             
 
