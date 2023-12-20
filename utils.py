@@ -14,7 +14,6 @@ from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings import OpenAIEmbeddings
 
 
-
 # azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
 # azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
 # pinecone_api_key = os.environ.get("PINECONE_API_KEY")
@@ -25,8 +24,9 @@ pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_env = os.environ.get("PINECONE_ENV")
 
 pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
-index_name = 't2findex'
+index_name = "t2findex"
 index = pinecone.GRPCIndex(index_name)
+
 
 def read_text_file(file_path: str) -> str:
     with open(file_path, "r") as f:
@@ -118,24 +118,31 @@ def docx_to_pdf(input_path: str) -> str:
         return output_path  # Return the full path of the output PDF
     except subprocess.CalledProcessError:
         return None
-    
+
+
 def data_chunker(file_path: str):
-    #managing chunk size with recursivecharsplitter
+    # managing chunk size with recursivecharsplitter
     splitter_page = RecursiveCharacterTextSplitter(
-    chunk_size = 2000,
-    chunk_overlap  = 0,
-    length_function = len
-)
-    
+        chunk_size=2000, chunk_overlap=0, length_function=len
+    )
+
     loader = PyPDFLoader(file_path)
     pages = loader.load_and_split(splitter_page)
 
     return pages
 
+
 def vectoriser(text: str) -> List[float]:
-    embeddings = OpenAIEmbeddings(openai_api_key=os.environ.get("OPENAI_API_KEY"))
+    embeddings = OpenAIEmbeddings(
+        deployment = "right-co-pilot-embedding-ada-002",
+        openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
+        openai_api_base=os.environ.get("AZURE_OPENAI_API_BASE"),
+        openai_api_type=os.environ.get("AZURE_OPENAI_API_TYPE"),
+        openai_api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
+    )
     return embeddings.embed_query(text)
-    
+
+
 def embeds_metadata(pages):
     chunk_metadata = []
     chunk_embeds = []
@@ -144,44 +151,43 @@ def embeds_metadata(pages):
     for page in pages:
         record_metadata = {
             "chunk_page": page.metadata["page"] + 1,
-            "chunk_text": page.page_content
+            "chunk_text": page.page_content,
         }
 
         chunk_embeds.append(vectoriser(page.page_content))
         chunk_metadata.append(record_metadata)
 
     return ids, chunk_metadata, chunk_embeds
- 
 
 
 def indexer(chunked_data):
     index.delete(delete_all=True)
     ids, chunk_metadata, chunk_embeds = embeds_metadata(chunked_data)
-    file = list(zip(ids,chunk_embeds,chunk_metadata))
-    index.upsert(vectors= file)
+    file = list(zip(ids, chunk_embeds, chunk_metadata))
+    index.upsert(vectors=file)
 
+    
 def retreiver(query: str) -> str:
     vector_count = index.describe_index_stats()["total_vector_count"]
-    top_k=5 if vector_count > 5 else vector_count
+    top_k = 5 if vector_count > 5 else vector_count
     query_vector = vectoriser(query)
     query_results = index.query(
-    vector=query_vector,
-    top_k=top_k,
-    include_values=False,
-    include_metadata=True
+        vector=query_vector, top_k=top_k, include_values=False, include_metadata=True
     )
 
     chunk_final = "\n\n".join(
-    f"Chunk Page Number: {query_results['matches'][i]['metadata']['chunk_page']}\n\n"
-    f"Chunk Text: {query_results['matches'][i]['metadata']['chunk_text']}\n\n"
-    "---- END OF CHUNK ----"
-    for i in range(top_k)
-)
+        f"Chunk Page Number: {query_results['matches'][i]['metadata']['chunk_page']}\n\n"
+        f"Chunk Text: {query_results['matches'][i]['metadata']['chunk_text']}\n\n"
+        "---- END OF CHUNK ----"
+        for i in range(top_k)
+    )
     return chunk_final
+
+
 
 # query = "give me a summary "
 
 # print(retreiver(query))
 
-# pages = data_chunker("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/Preetha_Datta_CV2023_Aalto_2023 (1).pdf")
+# pages = data_chunker("temp_data/NPL- D2 Document (3).pdf")
 # indexer(pages)
