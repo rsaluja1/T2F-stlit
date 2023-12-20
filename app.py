@@ -57,6 +57,7 @@ def save_file(uploaded_file):
 
 @st.cache_data
 def displayPDF(file_path):
+    print("display PDF run")
     # Read local PDF file as bytes:
     with open(file_path, "rb") as file:
         bytes_data = file.read()
@@ -83,6 +84,7 @@ def displayPDF(file_path):
 
 @st.cache_data
 def chunker_indexer(file_path):
+    print("chunker running")
     pages = data_chunker(file_path)
     indexer(pages)
 
