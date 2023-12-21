@@ -85,8 +85,9 @@ def displayPDF(file_path):
 @st.cache_data
 def chunker_indexer(file_path):
     print("chunker running")
-    pages = data_chunker(file_path)
-    indexer(pages)
+    pages, status = read_pdf(file_path)
+    #indexer(pages)
+    indexer(pages, status)
 
 # sidebar
 # with st.sidebar:
@@ -230,10 +231,10 @@ def generative_layer(question: str) -> str:
         st.error("Your file is too big. Supply a smaller file.")
 
 
-@st.cache_data
-def pdf_reader(file_path):
-    pdf_text = read_pdf(file_path)
-    return pdf_text
+# @st.cache_data
+# def pdf_reader(file_path):
+#     pdf_text = read_pdf(file_path)
+#     return pdf_text
 
 
 def main():

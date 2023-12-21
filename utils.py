@@ -57,15 +57,15 @@ def read_pdf(input_file_path: str):
     """
 
     reader = PdfReader(input_file_path)
-    pdf_text = ""
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
-        if len(extracted_page) > 0:
-            pdf_text += extracted_page
-
-    extracted_text = azure_ocr(input_file_path) if not pdf_text else pdf_text
-    clean_extracted_text = extracted_text.replace("\0", "")
-    return clean_extracted_text
+    
+    if len(extracted_page) > 0:
+        pages, page_type = data_chunker(input_file_path), "non-ocr"
+        return pages, page_type
+    else:
+        file_text, page_type = azure_ocr(input_file_path), "ocr"
+        return file_text, page_type
 
 
 def token_counter(string: str, model_name: str) -> int:
@@ -73,6 +73,18 @@ def token_counter(string: str, model_name: str) -> int:
     encoding = tiktoken.encoding_for_model(f"{model_name}")
     num_tokens = len(encoding.encode(string))
     return num_tokens
+
+
+def data_chunker(file_path: str):
+    # managing chunk size with recursivecharsplitter
+    splitter_page = RecursiveCharacterTextSplitter(
+        chunk_size=2000, chunk_overlap=0, length_function=len
+    )
+
+    loader = PyPDFLoader(file_path)
+    pages = loader.load_and_split(splitter_page)
+
+    return pages
 
 
 def azure_ocr(input_file_path: str):
@@ -91,8 +103,20 @@ def azure_ocr(input_file_path: str):
     ocr_results = poller.result()
 
     results_dict = ocr_results.to_dict()
-
-    return results_dict["content"]
+    
+    file_text = []
+    
+    # Loop through each page in results_dict to join the lines per page in a single string
+    for i in range(len(results_dict['pages'])):
+        elem_dict = {}
+        content_list = [results_dict['pages'][i]['lines'][k]['content'] 
+                        for k in range(len(results_dict['pages'][i]['lines']))]
+        content_str = ' '.join(content_list)
+        elem_dict['page_content'] = content_str
+        elem_dict['page_number'] = i + 1
+        file_text.append(elem_dict)
+    
+    return file_text
 
 
 def docx_to_pdf(input_path: str) -> str:
@@ -119,19 +143,6 @@ def docx_to_pdf(input_path: str) -> str:
     except subprocess.CalledProcessError:
         return None
 
-
-def data_chunker(file_path: str):
-    # managing chunk size with recursivecharsplitter
-    splitter_page = RecursiveCharacterTextSplitter(
-        chunk_size=2000, chunk_overlap=0, length_function=len
-    )
-
-    loader = PyPDFLoader(file_path)
-    pages = loader.load_and_split(splitter_page)
-
-    return pages
-
-
 def vectoriser(text: str) -> List[float]:
     embeddings = OpenAIEmbeddings(
         deployment = "right-co-pilot-embedding-ada-002",
@@ -143,26 +154,41 @@ def vectoriser(text: str) -> List[float]:
     return embeddings.embed_query(text)
 
 
-def embeds_metadata(pages):
+def embeds_metadata(pages,page_type):
+
     chunk_metadata = []
     chunk_embeds = []
 
-    ids = [f"ID-{id}" for id in range(len(pages))]
-    for page in pages:
-        record_metadata = {
-            "chunk_page": page.metadata["page"] + 1,
-            "chunk_text": page.page_content,
-        }
+    if page_type == "non-ocr":
 
-        chunk_embeds.append(vectoriser(page.page_content))
-        chunk_metadata.append(record_metadata)
+        ids = [f"ID-{id}" for id in range(len(pages))]
+        for page in pages:
+            record_metadata = {
+                "chunk_page": page.metadata["page"] + 1,
+                "chunk_text": page.page_content,
+            }
+
+            chunk_embeds.append(vectoriser(page.page_content))
+            chunk_metadata.append(record_metadata)
+
+    else:
+
+        ids = [f"ID-{id}" for id in range(len(pages))]
+        for page in pages:
+            record_metadata = {
+                "chunk_page": page["page_number"] ,
+                "chunk_text": page["page_content"], 
+            }
+
+            chunk_embeds.append(vectoriser(page["page_content"]))
+            chunk_metadata.append(record_metadata)
 
     return ids, chunk_metadata, chunk_embeds
 
 
-def indexer(chunked_data):
+def indexer(pages, page_type):
     index.delete(delete_all=True)
-    ids, chunk_metadata, chunk_embeds = embeds_metadata(chunked_data)
+    ids, chunk_metadata, chunk_embeds = embeds_metadata(pages, page_type)
     file = list(zip(ids, chunk_embeds, chunk_metadata))
     index.upsert(vectors=file)
 
@@ -191,3 +217,11 @@ def retreiver(query: str) -> str:
 
 # pages = data_chunker("temp_data/NPL- D2 Document (3).pdf")
 # indexer(pages)
+
+#print(azure_ocr("temp_data/US2023214776A1 (2).pdf"))
+
+# pages, status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/US2023214776A1 (2).pdf")
+# indexer(pages, status)
+
+
+
