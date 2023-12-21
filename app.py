@@ -112,7 +112,7 @@ def chunker_indexer(file_path):
 with st.sidebar:
     st.title("🤗💬 Talk to File")
     # Upload PDF file
-    uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf", "docx"])
+    uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf"])
 
     if uploaded_pdf is not None:
         saved_file_path = save_file(uploaded_pdf)
@@ -124,11 +124,11 @@ with st.sidebar:
             # Update the session state to indicate this file has been processed
             st.session_state["file_processed"] = uploaded_pdf.name
         
-        displayPDF(saved_file_path)
         st.markdown(
                 "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
                 unsafe_allow_html=True,
             )
+        displayPDF(saved_file_path)
     else:
         st.cache_data.clear()
         # Optionally, clear the processed file flag when no file is uploaded
