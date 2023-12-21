@@ -211,7 +211,7 @@ def retreiver(query: str) -> str:
 
 
 
-# query = "give me a summary "
+# query = "is there a mention of precision medicine?"
 
 # print(retreiver(query))
 
