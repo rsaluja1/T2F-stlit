@@ -1,18 +1,18 @@
 import os
-from utils import read_yaml_file, read_pdf, retreiver, token_counter
+from utils import read_yaml_file, read_pdf, token_counter
 
 prompt_path = "prompts/talk_to_file_prompts-RAG.yaml"
 dirname = os.path.dirname(os.path.abspath(__file__))
 prompt_path_ttf = os.path.join(dirname, prompt_path)
 
 
-def prompt_creator(question: str):
+def prompt_creator(question: str, retreived_chunks: str):
     
     prompt = read_yaml_file(prompt_path_ttf)["TALK_TO_FILE"]
     # prompt = prompt.replace("<<file_text>>", f"{file_text}").replace(
     #         "<<user_question>>", f"{question}"
     #     )
-    retreived_chunks = retreiver(question)
+    #retreived_chunks = retreiver(question)
     chunk_tokens = token_counter(retreived_chunks,model_name="gpt-4")
     
     
@@ -26,12 +26,12 @@ def prompt_creator(question: str):
     return prompt, chunk_tokens
 
 
-if __name__ == "__main__":
-    # file_text = input("Enter the Text of the File you wish to Chat with ")
-    # question = input("Enter your Question ")
+# if __name__ == "__main__":
+#     # file_text = input("Enter the Text of the File you wish to Chat with ")
+#     # question = input("Enter your Question ")
 
 
-    file_text = read_pdf("temp_data/managing_ai_risks.pdf")
-    question = "Who is the author?" 
+#     file_text = read_pdf("temp_data/managing_ai_risks.pdf")
+#     question = "Who is the author?" 
 
-    print(prompt_creator(question))
+#     print(prompt_creator(question))

@@ -4,7 +4,7 @@ import openai
 import base64
 import asyncio
 import streamlit as st
-from utils import read_pdf, token_counter, docx_to_pdf, data_chunker, indexer
+from utils import read_pdf, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 
@@ -81,13 +81,21 @@ def displayPDF(file_path):
 #     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
-
 @st.cache_data
-def chunker_indexer(file_path):
-    print("chunker running")
-    pages, status = read_pdf(file_path)
-    #indexer(pages)
-    indexer(pages, status)
+def embeds_metadata_save(file_path):
+    print(file_path)
+    pages, ocr_status = read_pdf(file_path)
+    print("saving embeds metada")
+    file_uuid = save_embeds_metadata(pages,ocr_status)
+    return file_uuid
+
+
+# @st.cache_data
+# def chunker_indexer(file_path):
+#     print("chunker running")
+#     pages, ocr_status = read_pdf(file_path)
+#     #indexer(pages)
+#     indexer(pages, ocr_status)
 
 # sidebar
 # with st.sidebar:
@@ -121,25 +129,33 @@ with st.sidebar:
         if "file_processed" not in st.session_state or st.session_state["file_processed"] != uploaded_pdf.name:
            
             with st.spinner("Uploading and Reading PDF..."):
-                chunker_indexer(saved_file_path)
+                file_uuid = embeds_metadata_save(saved_file_path)
             # Update the session state to indicate this file has been processed
             st.session_state["file_processed"] = uploaded_pdf.name
+            st.session_state["file_uuid"] = file_uuid
+            st.session_state["df"], st.session_state["loaded_embeddings"] = embeds_metadata_loader(st.session_state["file_uuid"])
+
         
         st.markdown(
-                "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-                unsafe_allow_html=True,
+                    "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
+                    unsafe_allow_html=True,
             )
         displayPDF(saved_file_path)
     else:
         st.cache_data.clear()
         # Optionally, clear the processed file flag when no file is uploaded
         if "file_processed" in st.session_state:
-            del st.session_state.file_processed
+            del st.session_state["file_processed"]
+        if "file_uuid" in st.session_state:
+            del st.session_state["file_uuid"]
 
 
 def generative_layer(question: str) -> str:
     #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
-    prompt, chunk_tokens = prompt_creator(question)
+    #df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
+    df, loaded_embeddings = st.session_state["df"], st.session_state["loaded_embeddings"]
+    retreived_chunks = retreiver(question,loaded_embeddings,df) 
+    prompt, chunk_tokens = prompt_creator(question,retreived_chunks)
     hp = hyperparam_handler(chunk_tokens)
     #token_count = token_counter(file_text, "gpt-4")
 

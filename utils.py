@@ -2,16 +2,25 @@ import os
 import yaml
 import math
 import time
+import uuid
+import torch
 import tiktoken
 import subprocess
 import pinecone
+import pandas as pd
 from typing import List
+import torch.nn.functional as F
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader, PdfWriter
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings import OpenAIEmbeddings
+
+
+dirname = os.path.dirname(os.path.abspath(__file__))
+data_dir_path = os.path.join(dirname, "data")
+
 
 
 # azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
@@ -23,9 +32,17 @@ azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
 pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_env = os.environ.get("PINECONE_ENV")
 
-pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
-index_name = "t2findex"
-index = pinecone.GRPCIndex(index_name)
+import os
+import yaml
+import tiktoken
+import subprocess
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
+from PyPDF2 import PdfReader, PdfWriter
+
+
+azure_ocr_endpoint = "https://patent-drafting-ocr.cognitiveservices.azure.com/"
+azure_ocr_key = "c6cf1be381754599820ea962b5005ec4"
 
 
 def read_text_file(file_path: str) -> str:
@@ -44,7 +61,31 @@ def read_yaml_file(file_path: str):
             file.close()
             return data
     except Exception as e:
-        raise RuntimeError(f"Error reading or parsing YAML file: {e}")
+        raise RuntimeError(f"Error reading or parsing YAML file: {e}")    
+
+def data_chunker(file_path: str):
+    """
+    Splits the content of a PDF file into chunks of text.
+
+    This function uses a RecursiveCharacterTextSplitter to divide the text from a PDF file,
+    specified by file_path, into chunks. Each chunk is up to 2000 characters, with no overlap
+    between chunks.
+
+    Parameters:
+    file_path (str): Path to the PDF file to be split into chunks.
+
+    Returns:
+    A list of text chunks from the PDF file.
+    """
+    # managing chunk size with recursivecharsplitter
+    splitter_page = RecursiveCharacterTextSplitter(
+        chunk_size=2000, chunk_overlap=0, length_function=len
+    )
+
+    loader = PyPDFLoader(file_path)
+    pages = loader.load_and_split(splitter_page)
+
+    return pages
 
 
 def read_pdf(input_file_path: str):
@@ -55,17 +96,16 @@ def read_pdf(input_file_path: str):
     :return: string with PDF text content if PDF has already been OCR'd
     :rtype: str
     """
-
     reader = PdfReader(input_file_path)
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
     
     if len(extracted_page) > 0:
-        pages, page_type = data_chunker(input_file_path), "non-ocr"
-        return pages, page_type
+        pages, ocr_status = data_chunker(input_file_path), "non-ocr"
+        return pages, ocr_status
     else:
-        file_text, page_type = azure_ocr(input_file_path), "ocr"
-        return file_text, page_type
+        file_text, ocr_status = azure_ocr(input_file_path), "ocr"
+        return file_text, ocr_status
 
 
 def token_counter(string: str, model_name: str) -> int:
@@ -74,17 +114,6 @@ def token_counter(string: str, model_name: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-
-def data_chunker(file_path: str):
-    # managing chunk size with recursivecharsplitter
-    splitter_page = RecursiveCharacterTextSplitter(
-        chunk_size=2000, chunk_overlap=0, length_function=len
-    )
-
-    loader = PyPDFLoader(file_path)
-    pages = loader.load_and_split(splitter_page)
-
-    return pages
 
 
 def azure_ocr(input_file_path: str):
@@ -144,6 +173,15 @@ def docx_to_pdf(input_path: str) -> str:
         return None
 
 def vectoriser(text: str) -> List[float]:
+    """
+    Converts a text string into a list of numerical embeddings using OpenAI's Embeddings API.
+
+    Parameters:
+    text (str): Input text to be vectorized.
+
+    Returns:
+    List[float]: Numerical embeddings of the input text.
+    """
     embeddings = OpenAIEmbeddings(
         deployment = "right-co-pilot-embedding-ada-002",
         openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
@@ -156,72 +194,90 @@ def vectoriser(text: str) -> List[float]:
 
 def embeds_metadata(pages,page_type):
 
-    chunk_metadata = []
-    chunk_embeds = []
+    chunk_texts = []
+    chunk_page = []
+    chunk_embeds= []
 
-    if page_type == "non-ocr":
+    for page in pages:
+        chunk_texts.append(page.page_content) if page_type == "non-ocr" else chunk_texts.append(page["page_content"])
+        chunk_page.append(page.metadata["page"]+1) if page_type == "non-ocr" else chunk_page.append(page["page_number"])
+        chunk_embeds.append(vectoriser(page.page_content)) if page_type == "non-ocr" else chunk_embeds.append(vectoriser(page.page_content))
+            
 
-        ids = [f"ID-{id}" for id in range(len(pages))]
-        for page in pages:
-            record_metadata = {
-                "chunk_page": page.metadata["page"] + 1,
-                "chunk_text": page.page_content,
-            }
-
-            chunk_embeds.append(vectoriser(page.page_content))
-            chunk_metadata.append(record_metadata)
-
-    else:
-
-        ids = [f"ID-{id}" for id in range(len(pages))]
-        for page in pages:
-            record_metadata = {
-                "chunk_page": page["page_number"] ,
-                "chunk_text": page["page_content"], 
-            }
-
-            chunk_embeds.append(vectoriser(page["page_content"]))
-            chunk_metadata.append(record_metadata)
-
-    return ids, chunk_metadata, chunk_embeds
-
-
-def indexer(pages, page_type):
-    index.delete(delete_all=True)
-    ids, chunk_metadata, chunk_embeds = embeds_metadata(pages, page_type)
-    file = list(zip(ids, chunk_embeds, chunk_metadata))
-    index.upsert(vectors=file)
+    return chunk_texts,chunk_page,chunk_embeds
 
     
-def retreiver(query: str) -> str:
-    vector_count = index.describe_index_stats()["total_vector_count"]
-    top_k = 5 if vector_count > 5 else vector_count
-    query_vector = vectoriser(query)
-    query_results = index.query(
-        vector=query_vector, top_k=top_k, include_values=False, include_metadata=True
-    )
+def save_embeds_metadata(pages,page_type):
+   
+   file_uuid = uuid.uuid4()
 
+   chunk_texts,chunk_page,chunk_embeds = embeds_metadata(pages, page_type)
+    
+   os.makedirs(data_dir_path, exist_ok=True)
+   torch.save(torch.tensor(chunk_embeds), f'{data_dir_path}/{file_uuid}-pt.pt')
+   df = pd.DataFrame({'Chunk_Text': chunk_texts, 'Page_Number': chunk_page})
+   df.to_csv(f'{data_dir_path}/{file_uuid}-df.csv', header=True, index = False)
+
+   return file_uuid
+
+
+def embeds_metadata_loader(file_uuid):
+    df= pd.read_csv(f'{data_dir_path}/{file_uuid}-df.csv', header=0)
+    loaded_embeddings = torch.load(f'{data_dir_path}/{file_uuid}-pt.pt')
+
+    return df, loaded_embeddings
+
+def retreiver(query: str, loaded_embeddings: torch.Tensor, chunks_df: pd.DataFrame ) -> str:
+    """
+    Retrieves and formats the top 5 chunks from a DataFrame based on cosine similarity to a query embedding.
+
+    Parameters:
+    query (str): The query string.
+    loaded_embeddings (torch.Tensor): Tensor of t2f-document embeddings.
+    chunks_df (pd.DataFrame): DataFrame containing chunk details.
+
+    Returns:
+    str: Formatted string of the top 5 chunks with their page numbers and texts.
+    """
+
+
+    query_embedding = torch.tensor(vectoriser(query)).view(1, -1)
+    cosine_similarity_scores = F.cosine_similarity(query_embedding, loaded_embeddings)
+    top_k = torch.topk(cosine_similarity_scores, k=5)
+    top_chunks = top_k.indices.tolist()
+    retrieved_chunks_df = chunks_df.iloc[top_chunks]
     chunk_final = "\n\n".join(
-        f"Chunk Page Number: {query_results['matches'][i]['metadata']['chunk_page']}\n\n"
-        f"Chunk Text: {query_results['matches'][i]['metadata']['chunk_text']}\n\n"
-        "---- END OF CHUNK ----"
-        for i in range(top_k)
-    )
+    f"Chunk Page Number: {row['Page_Number']}\n\n"
+    f"Chunk Text: {row['Chunk_Text']}\n\n"
+    "---- END OF CHUNK ----"
+    for index, row in retrieved_chunks_df.iterrows()
+)
     return chunk_final
 
 
+if __name__ == "__main__":
+    
+    pages, ocr_status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/NPL- D2 Document.pdf")
+    file_uuid = save_embeds_metadata(pages,ocr_status)
+    df, loaded_embeddings = embeds_metadata_loader(file_uuid)
 
-# query = "is there a mention of precision medicine?"
 
-# print(retreiver(query))
+    query = "Who was the author supervised by?"
 
-# pages = data_chunker("temp_data/NPL- D2 Document (3).pdf")
-# indexer(pages)
+    retreived_chunks = retreiver(query,loaded_embeddings,df)
+    print(retreived_chunks)
 
-#print(azure_ocr("temp_data/US2023214776A1 (2).pdf"))
+    # pages = data_chunker("temp_data/managing_ai_risks.pdf")
+    # hunk_texts,chunk_page,chunk_embeds = embeds_metadata(pages)
+    # save_embeds_metadata()
 
-# pages, status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/US2023214776A1 (2).pdf")
-# indexer(pages, status)
+
+    # indexer(pages)
+
+    #print(azure_ocr("temp_data/US2023214776A1 (2).pdf"))
+
+    # pages, status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/US2023214776A1 (2).pdf")
+    # indexer(pages, status)
 
 
 
