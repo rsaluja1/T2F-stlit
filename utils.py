@@ -201,7 +201,7 @@ def embeds_metadata(pages,page_type):
     for page in pages:
         chunk_texts.append(page.page_content) if page_type == "non-ocr" else chunk_texts.append(page["page_content"])
         chunk_page.append(page.metadata["page"]+1) if page_type == "non-ocr" else chunk_page.append(page["page_number"])
-        chunk_embeds.append(vectoriser(page.page_content)) if page_type == "non-ocr" else chunk_embeds.append(vectoriser(page.page_content))
+        chunk_embeds.append(vectoriser(page.page_content)) if page_type == "non-ocr" else chunk_embeds.append(vectoriser(page["page_content"]))
             
 
     return chunk_texts,chunk_page,chunk_embeds
