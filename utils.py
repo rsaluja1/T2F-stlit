@@ -46,12 +46,37 @@ azure_ocr_key = "c6cf1be381754599820ea962b5005ec4"
 
 
 def read_text_file(file_path: str) -> str:
+    """
+    Reads the entire content of a text file and returns it as a string.
+
+    Args:
+    file_path (str): The path to the text file to be read.
+
+    Returns:
+    str: The content of the file as a string.
+    """
     with open(file_path, "r") as f:
         content = f.read()
     return content
 
 
 def read_yaml_file(file_path: str):
+    """
+    Reads and parses a YAML file, returning its content as a Python object.
+
+    Args:
+        file_path (str): Path to the YAML file.
+
+    Returns:
+        Any: Parsed content of the YAML file.
+
+    Raises:
+        ValueError: If `file_path` is not a valid file path.
+        RuntimeError: If reading or parsing the YAML file fails.
+
+    Example:
+        data = read_yaml_file("path/to/file.yaml")
+    """
     if not os.path.exists(file_path) or not os.path.isfile(file_path):
         raise ValueError(f"The provided path '{file_path}' is not a valid file.")
 
@@ -61,7 +86,8 @@ def read_yaml_file(file_path: str):
             file.close()
             return data
     except Exception as e:
-        raise RuntimeError(f"Error reading or parsing YAML file: {e}")    
+        raise RuntimeError(f"Error reading or parsing YAML file: {e}")
+    
 
 def data_chunker(file_path: str):
     """
@@ -109,21 +135,41 @@ def read_pdf(input_file_path: str):
 
 
 def token_counter(string: str, model_name: str) -> int:
-    """Returns the number of tokens in a text string."""
+    """
+    Counts the number of tokens in a given string using a specified model's encoding.
+
+    Args:
+        string (str): The text to be tokenized.
+        model_name (str): The name of the model to use for encoding.
+
+    Returns:
+        int: The count of tokens in the string.
+    """
     encoding = tiktoken.encoding_for_model(f"{model_name}")
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
 
-
 def azure_ocr(input_file_path: str):
-    # Set up Azure OCR client
+    """
+    Performs OCR on a document using Azure's Document Analysis Client and returns text by page.
 
+    Args:
+        input_file_path (str): File path of the document for OCR.
+
+    Returns:
+        list of dict: Each dictionary contains 'page_content' (text of the page) and 
+                      'page_number', corresponding to each page in the document.
+
+    Note:
+        Requires Azure OCR credentials (endpoint and key) for use.
+    """
+    # Set up Azure OCR client
     document_analysis_client = DocumentAnalysisClient(
         endpoint=azure_ocr_endpoint, credential=AzureKeyCredential(azure_ocr_key)
     )
 
-    # Pass input Prior_Art_PDF to Azure OCR client
+    # Pass input file to Azure OCR client
     with open(input_file_path, "rb") as f:
         poller = document_analysis_client.begin_analyze_document(
             "prebuilt-layout", document=f, features=[AnalysisFeature.LANGUAGES]
@@ -149,6 +195,21 @@ def azure_ocr(input_file_path: str):
 
 
 def docx_to_pdf(input_path: str) -> str:
+    """
+    Converts a DOCX file to a PDF file using LibreOffice's command-line interface.
+
+    The function converts a DOCX file specified by 'input_path' to a PDF file,
+    saving it in the same directory with the same base filename.
+
+    Args:
+        input_path (str): The file path of the DOCX file to convert.
+
+    Returns:
+        str: The file path of the converted PDF file. Returns None if conversion fails.
+
+    Note:
+        LibreOffice must be installed and accessible via the command line as 'soffice'.
+    """
     output_directory = os.path.dirname(
         input_path
     )  # Extracts the directory from the input path
@@ -208,6 +269,19 @@ def embeds_metadata(pages,page_type):
 
     
 def save_embeds_metadata(pages,page_type):
+   """
+    Saves text, page numbers, and their embeddings to files, and returns a unique file UUID.
+
+    Args:
+        pages (list): List of page objects.
+        page_type (str): Type of pages ('ocr' or 'non-ocr').
+
+    Returns:
+        uuid.UUID: The UUID associated with the saved files.
+
+    Note:
+        Saves embeddings as a PyTorch tensor and metadata as a CSV in 'data_dir_path'.
+    """
    
    file_uuid = uuid.uuid4()
 
@@ -222,6 +296,18 @@ def save_embeds_metadata(pages,page_type):
 
 
 def embeds_metadata_loader(file_uuid):
+    """
+    Loads and returns embeddings and metadata from files using a specified UUID.
+
+    Args:
+        file_uuid (uuid.UUID or str): UUID identifying the files to load.
+
+    Returns:
+        tuple: (DataFrame with page texts and numbers, tensor of embeddings).
+
+    Note:
+        Assumes 'data_dir_path' as the directory for file storage.
+    """
     df= pd.read_csv(f'{data_dir_path}/{file_uuid}-df.csv', header=0)
     loaded_embeddings = torch.load(f'{data_dir_path}/{file_uuid}-pt.pt')
 
@@ -239,8 +325,6 @@ def retreiver(query: str, loaded_embeddings: torch.Tensor, chunks_df: pd.DataFra
     Returns:
     str: Formatted string of the top 5 chunks with their page numbers and texts.
     """
-
-
     query_embedding = torch.tensor(vectoriser(query)).view(1, -1)
     cosine_similarity_scores = F.cosine_similarity(query_embedding, loaded_embeddings)
     top_k = torch.topk(cosine_similarity_scores, k=5)
