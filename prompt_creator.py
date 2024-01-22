@@ -1,14 +1,14 @@
 import os
 from utils import read_yaml_file, read_pdf, token_counter
 
-prompt_path = "prompts/talk_to_file_prompts-RAG.yaml"
+prompt_path = "prompts/T2F_Ref_Revised.yaml"
 dirname = os.path.dirname(os.path.abspath(__file__))
 prompt_path_ttf = os.path.join(dirname, prompt_path)
 
 
 def prompt_creator(question: str, retreived_chunks: str):
     
-    prompt = read_yaml_file(prompt_path_ttf)["TALK_TO_FILE"]
+    prompt = read_yaml_file(prompt_path_ttf)["TALK_TO_FILE_REFERENCING"]
     # prompt = prompt.replace("<<file_text>>", f"{file_text}").replace(
     #         "<<user_question>>", f"{question}"
     #     )
