@@ -1,8 +1,17 @@
 TALK_TO_FILE:
-  engine: right-co-pilot-gpt4-8k
-  engine_32k: right-co-pilot-32k
+  model: right-co-pilot-gpt4-8k
+  model_32k: right-co-pilot-32k
   temperature: 0.5
   max_tokens: 1500
+  top_p: 1.0
+  frequency_penalty: 0.0
+  presense_penalty: 0.0
+  stop_sequences: ["<END>"]
+
+TALK_TO_FILE_CHITCHAT:
+  model: right-co-pilot-gpt4-8k
+  temperature: 0.5
+  max_tokens: 256
   top_p: 1.0
   frequency_penalty: 0.0
   presense_penalty: 0.0

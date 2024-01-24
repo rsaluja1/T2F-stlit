@@ -1,6 +1,6 @@
 TALK_TO_FILE_ROUTES:
-  - name: chitchat
-    utterances:
+  CHITCHAT:
+    UTTERENCES:
       - "hi"
       - "hello"
       - "how are you"
@@ -13,8 +13,8 @@ TALK_TO_FILE_ROUTES:
       - "the weather is horrendous"
       - "let's go to the chippy"
 
-  - name: gratitude
-    utterances:
+  GRATITUDE:
+    UTTERENCES:
       - "thanks"
       - "thank you"
       - "cheers"
@@ -29,8 +29,8 @@ TALK_TO_FILE_ROUTES:
       - "thank you very much"
       - "love that answer"
 
-  - name: sports_talk
-    utterances:
+  SPORTS_TALK:
+    UTTERENCES:
       - "how did the game go"
       - "who won the match last night"
       - "what's the score"
@@ -42,15 +42,31 @@ TALK_TO_FILE_ROUTES:
       - "who is your favorite player"
       - "which team do you support"
 
-  -name: politics_discussion
-    utterances:
-    - "who is the current president"
-    - "what do you think about the new policy"
-    - "how does the election work"
-    - "what's the latest political news"
-    - "who are the main candidates"
-    - "what are their political platforms"
-    - "how does the government function"
-    - "what's your opinion on the current administration"
-    - "how does this law affect us"
-    - "what are the major political parties"
+  POLITICS_DISCUSSION:
+    UTTERENCES:
+      - "who is the current president"
+      - "what do you think about the new policy"
+      - "how does the election work"
+      - "what's the latest political news"
+      - "who are the main candidates"
+      - "what are their political platforms"
+      - "how does the government function"
+      - "what's your opinion on the current administration"
+      - "how does this law affect us"
+      - "what are the major political parties"
+
+  CHUNKS_DISCUSSION:
+    UTTERENCES:
+      - "What are the used chunks?"
+      - "Which chunks are commonly used in this algorithm?"
+      - "What are the most frequently used chunks in this dataset?"
+      - "How are chunks utilized in this particular process?"
+      - "Can you identify the actively used chunks in the system?"
+      - "What are the used chunks in this programming context?"
+      - "Which chunks are being used in the current analysis?"
+      - "How are these chunks being used in the application?"
+      - "What are the specific chunks used in this memory model?"
+      - "Can you list the chunks used in this computational task?"
+      - "What chunks are used in the execution of this program?"
+
+

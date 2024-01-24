@@ -1,9 +1,11 @@
 import os
 import time
 import openai
+from openai import AzureOpenAI
 import base64
 import asyncio
 import streamlit as st
+from t2f_router import get_route_name
 from utils import read_pdf, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
@@ -149,62 +151,145 @@ with st.sidebar:
         if "file_uuid" in st.session_state:
             del st.session_state["file_uuid"]
 
+def string_streamer(input_string: str):
+    """
+    Stream a string to the console.
+
+    Args:
+        input_string (str): The string to stream.
+    """
+    stream_str = ""
+    for char in input_string:
+        stream_str += char
+        time.sleep(0.03)
+        yield stream_str
+
+def generative_streamer(prompt,hp):
+    client = AzureOpenAI(
+        azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
+        api_key=os.environ.get("AZURE_OPENAI_API_KEY")
+    )
+
+    response = client.chat.completions.create(
+        model=hp["model_name"],
+        messages=prompt,
+        temperature=hp["temperature"],
+        max_tokens=hp["max_tokens"],
+        top_p=hp["top_p"],
+        frequency_penalty=hp["frequency_penalty"],
+        presence_penalty=hp["presense_penalty"],
+        stop=hp["stop_sequences"],
+        stream=True,
+    )
+
+    full_reply_content = ""
+
+    for chunk in response:
+        if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
+            content = chunk.choices[0].delta.content
+            full_reply_content += content
+            time.sleep(0.02)
+            yield full_reply_content
+
 
 def generative_layer(question: str) -> str:
     #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
     #df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
-    df, loaded_embeddings = st.session_state["df"], st.session_state["loaded_embeddings"]
-    retreived_chunks = retreiver(question,loaded_embeddings,df) 
-    prompt, chunk_tokens = prompt_creator(question,retreived_chunks)
-    hp = hyperparam_handler(chunk_tokens)
-    #token_count = token_counter(file_text, "gpt-4")
 
-    if chunk_tokens <= 30000:
+    route_name = get_route_name(question)
+    print(route_name)
 
-        #openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
-        openai.api_type = os.environ.get("AZURE_OPENAI_API_TYPE")
-        #openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
-        openai.api_base = os.environ.get("AZURE_OPENAI_API_BASE")
-        #openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
-        openai.api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
-        #openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
-        openai.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    if route_name == "chitchat" or route_name == "gratitude":
+        prompt = prompt_creator(route_name,question)
+        hp = hyperparam_handler(route_name)
 
-        response = openai.ChatCompletion.create(
-            engine=hp["model_name"],
-            messages=prompt,
-            temperature=hp["temperature"],
-            max_tokens=hp["max_tokens"],
-            top_p=hp["top_p"],
-            frequency_penalty=hp["frequency_penalty"],
-            presence_penalty=hp["presense_penalty"],
-            stop=hp["stop_sequences"],
-            stream=True,
-        )
+        streamer = generative_streamer(prompt,hp)
+        for gen in streamer:
+            yield gen
 
-        collected_messages = []
+    elif route_name == "sports_talk" or route_name == "politics_discussion" or route_name == "chunk_discussions":
+        streamer = string_streamer("My Appologies! I won't be able to answer this question.")
+        for str in streamer:
+            yield str
 
-        for chunk in response:
-            chunk_message = (
-                chunk["choices"][0]["delta"] if chunk["choices"] else ""
-            )  # extract the message
+    else:
 
-            # if not isinstance(chunk_message, str):
-            #     time.sleep(0.04)
-            #     yield chunk_message.get("content", "")
+        df, loaded_embeddings = st.session_state["df"], st.session_state["loaded_embeddings"]
+        route_name = get_route_name(question)
+        retreived_chunks = retreiver(question,loaded_embeddings,df)
 
-            collected_messages.append(chunk_message)
 
-            full_reply_content = "".join(
-                [
-                    m.get("content", "")
-                    for m in collected_messages
-                    if not isinstance(m, str)
-                ]
-            )
+        prompt, chunk_tokens = prompt_creator(route_name,question,retreived_chunks)
+        hp = hyperparam_handler(route_name,chunk_tokens)
+        #token_count = token_counter(file_text, "gpt-4")
 
-            time.sleep(0.02)
-            yield full_reply_content
+        streamer = generative_streamer(prompt,hp)
+        for gen in streamer:
+            yield gen
+
+    # #if chunk_tokens <= 30000:
+    # client = AzureOpenAI(
+    # azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
+    # api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
+    # api_key=os.environ.get("AZURE_OPENAI_API_KEY")
+    # )
+
+    #         # #openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
+    #         # openai.api_type = os.environ.get("AZURE_OPENAI_API_TYPE")
+    #         # #openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
+    #         # openai.api_base = os.environ.get("AZURE_OPENAI_API_BASE")
+    #         # #openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
+    #         # openai.api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
+    #         # #openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
+    #         # openai.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+
+    # response = client.chat.completions.create(
+    #     model=hp["model_name"],
+    #     messages=prompt,
+    #     temperature=hp["temperature"],
+    #     max_tokens=hp["max_tokens"],
+    #     top_p=hp["top_p"],
+    #     frequency_penalty=hp["frequency_penalty"],
+    #     presence_penalty=hp["presense_penalty"],
+    #     stop=hp["stop_sequences"],
+    #     stream=True,
+    #     )
+
+    # full_reply_content = ""
+
+    # for chunk in response:
+    #     if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
+    #         content = chunk.choices[0].delta.content
+    #         full_reply_content += content
+    #         time.sleep(0.03)
+    #         yield full_reply_content
+                
+
+
+        # collected_messages = []
+
+        # for chunk in response:
+        #     chunk_message = (
+        #         chunk["choices"][0]["delta"] if chunk["choices"] else ""
+        #     )  # extract the message
+
+        #     # if not isinstance(chunk_message, str):
+        #     #     time.sleep(0.04)
+        #     #     yield chunk_message.get("content", "")
+
+        #     collected_messages.append(chunk_message)
+
+        #     full_reply_content = "".join(
+        #         [
+        #             m.get("content", "")
+        #             for m in collected_messages
+        #             if not isinstance(m, str)
+        #         ]
+        #     )
+
+        #     time.sleep(0.02)
+        #     yield full_reply_content
 
     #elif chunk_tokens > 30000 and chunk_tokens < 120000:
     # if chunk_tokens <= 120000: 
@@ -243,8 +328,8 @@ def generative_layer(question: str) -> str:
     #         time.sleep(0.05)
     #         yield full_reply_content
 
-    else:
-        st.error("Your file is too big. Supply a smaller file.")
+    # else:
+    #     st.error("Your file is too big. Supply a smaller file.")
 
 
 # @st.cache_data

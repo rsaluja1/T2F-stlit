@@ -12,7 +12,7 @@ from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings
 
 
 dirname = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +27,7 @@ azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
 pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_env = os.environ.get("PINECONE_ENV")
+
 
 import os
 import yaml
@@ -238,12 +239,12 @@ def vectoriser(text: str) -> List[float]:
     Returns:
     List[float]: Numerical embeddings of the input text.
     """
-    embeddings = OpenAIEmbeddings(
-        deployment="right-co-pilot-embedding-ada-002",
-        openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-        openai_api_base=os.environ.get("AZURE_OPENAI_API_BASE"),
-        openai_api_type=os.environ.get("AZURE_OPENAI_API_TYPE"),
-        openai_api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
+
+    embeddings = AzureOpenAIEmbeddings(
+        azure_deployment=os.environ.get("AZURE_DEPLOYMENT"),
+        azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
+        api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION")
     )
     return embeddings.embed_query(text)
 
@@ -347,16 +348,16 @@ def retreiver(
 
 
 if __name__ == "__main__":
-    pages, ocr_status = read_pdf(
-        "/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/NPL- D2 Document.pdf"
-    )
-    file_uuid = save_embeds_metadata(pages, ocr_status)
-    df, loaded_embeddings = embeds_metadata_loader(file_uuid)
+    # pages, ocr_status = read_pdf(
+    #     "/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/NPL- D2 Document.pdf"
+    # )
+    # file_uuid = save_embeds_metadata(pages, ocr_status)
+    # df, loaded_embeddings = embeds_metadata_loader(file_uuid)
 
-    query = "Who was the author supervised by?"
+    # query = "Who was the author supervised by?"
 
-    retreived_chunks = retreiver(query, loaded_embeddings, df)
-    print(retreived_chunks)
+    # retreived_chunks = retreiver(query, loaded_embeddings, df)
+    # print(retreived_chunks)
 
     # pages = data_chunker("temp_data/managing_ai_risks.pdf")
     # hunk_texts,chunk_page,chunk_embeds = embeds_metadata(pages)
@@ -368,3 +369,5 @@ if __name__ == "__main__":
 
     # pages, status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/US2023214776A1 (2).pdf")
     # indexer(pages, status)
+
+    print(vectoriser("This is a test string"))
