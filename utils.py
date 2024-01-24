@@ -334,7 +334,7 @@ def retreiver(
     cosine_similarity_scores = F.cosine_similarity(query_embedding, loaded_embeddings)
     top_k = torch.topk(
         cosine_similarity_scores,
-        k=5 if len(cosine_similarity_scores) >= 5 else len(cosine_similarity_scores),
+        k=10 if len(cosine_similarity_scores) >= 10 else len(cosine_similarity_scores),
     )
     top_chunks = top_k.indices.tolist()
     retrieved_chunks_df = chunks_df.iloc[top_chunks]

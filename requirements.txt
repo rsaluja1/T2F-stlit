@@ -53,7 +53,9 @@ jsonschema==4.19.1
 jsonschema-specifications==2023.7.1
 kiwisolver==1.4.5
 langchain==0.0.305
-langsmith==0.0.66
+langchain-core==0.1.14
+langchain-openai==0.0.3
+langsmith==0.0.83
 loguru==0.7.2
 lxml==4.9.3
 lz4==4.3.2
@@ -121,7 +123,7 @@ streamlit-toggle-switch==1.0.2
 streamlit-vertical-slider==1.0.2
 sympy==1.12
 tenacity==8.2.3
-tiktoken==0.5.1
+tiktoken==0.5.2
 toml==0.10.2
 tomli==2.0.1
 toolz==0.12.0
