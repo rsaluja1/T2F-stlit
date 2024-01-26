@@ -13,11 +13,14 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings import OpenAIEmbeddings
+from dotenv import load_dotenv
 
+load_dotenv()
 
 dirname = os.path.dirname(os.path.abspath(__file__))
+print(dirname)
 data_dir_path = os.path.join(dirname, "data")
-
+print(data_dir_path)
 
 # azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
 # azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
@@ -103,6 +106,49 @@ def data_chunker(file_path: str):
     loader = PyPDFLoader(file_path)
     pages = loader.load_and_split(splitter_page)
 
+    # Code to add small chunks to the end of the previous chunk
+    # new_pages = [pages[0]]  # First page is always included
+    # for i in range(1, len(pages)):
+    #     if len(pages[i].page_content) < 100:
+    #         new_pages[-1].page_content += pages[i].page_content
+    #     else:
+    #         new_pages.append(pages[i])
+    #
+    # return new_pages
+    return pages
+
+
+def data_chunker_azure(page_text: List[str], metadata: List[dict]):
+    """
+    Splits the content of a PDF file that has been OCR'd with Azure OCR into chunks of text.
+
+    Each chunk is up to 2000 characters, with no overlap between chunks.
+
+    Parameters:
+    page_text (List[str]): A list where each element is a string of the text of each page
+    metadata (List[dict]): A list where each element is a dictionary of the page numbers
+    corresponding to the strings in page_text
+
+    Returns:
+    A list of text chunks from a PDF file that has been OCR'd with Azure OCR.
+    """
+
+    # managing chunk size with recursivecharsplitter
+    splitter_page = RecursiveCharacterTextSplitter(
+        chunk_size=2000, chunk_overlap=0, length_function=len
+    )
+
+    pages = splitter_page.create_documents(page_text, metadata)
+
+    # Code to add small chunks to the end of the previous chunk
+    # new_pages = [pages[0]]  # First page is always included
+    # for i in range(1, len(pages)):
+    #     if len(pages[i].page_content) < 100:
+    #         new_pages[-1].page_content += pages[i].page_content
+    #     else:
+    #         new_pages.append(pages[i])
+
+    # return new_pages
     return pages
 
 
@@ -119,11 +165,11 @@ def read_pdf(input_file_path: str):
         extracted_page = reader.pages[i].extract_text()
 
     if len(extracted_page) > 0:
-        pages, ocr_status = data_chunker(input_file_path), "non-ocr"
-        return pages, ocr_status
+        pages = data_chunker(input_file_path)
+        return pages
     else:
-        file_text, ocr_status = azure_ocr(input_file_path), "ocr"
-        return file_text, ocr_status
+        file_text = azure_ocr(input_file_path)
+        return file_text
 
 
 def token_counter(string: str, model_name: str) -> int:
@@ -171,21 +217,19 @@ def azure_ocr(input_file_path: str):
 
     results_dict = ocr_results.to_dict()
 
-    file_text = []
+    metadata = []
+    page_text = []
 
     # Loop through each page in results_dict to join the lines per page in a single string
-    for i in range(len(results_dict["pages"])):
-        elem_dict = {}
-        content_list = [
-            results_dict["pages"][i]["lines"][k]["content"]
-            for k in range(len(results_dict["pages"][i]["lines"]))
-        ]
-        content_str = " ".join(content_list)
-        elem_dict["page_content"] = content_str
-        elem_dict["page_number"] = i + 1
-        file_text.append(elem_dict)
+    for i in range(len(results_dict['pages'])):
+        content_list = [results_dict['pages'][i]['lines'][k]['content']
+                        for k in range(len(results_dict['pages'][i]['lines']))]
+        page_text.append(' '.join(content_list))
+        metadata.append({'page': i})
 
-    return file_text
+    pages = data_chunker_azure(page_text, metadata)
+
+    return pages
 
 
 def docx_to_pdf(input_path: str) -> str:
@@ -248,34 +292,28 @@ def vectoriser(text: str) -> List[float]:
     return embeddings.embed_query(text)
 
 
-def embeds_metadata(pages, page_type):
+def embeds_metadata(pages):
     chunk_texts = []
     chunk_page = []
     chunk_embeds = []
-
+    i = 0
     for page in pages:
-        chunk_texts.append(
-            page.page_content
-        ) if page_type == "non-ocr" else chunk_texts.append(page["page_content"])
-        chunk_page.append(
-            page.metadata["page"] + 1
-        ) if page_type == "non-ocr" else chunk_page.append(page["page_number"])
-        chunk_embeds.append(
-            vectoriser(page.page_content)
-        ) if page_type == "non-ocr" else chunk_embeds.append(
-            vectoriser(page["page_content"])
-        )
+        chunk_texts.append(page.page_content)
+        chunk_page.append(page.metadata["page"] + 1)
+        chunk_embeds.append(vectoriser(page.page_content))
+        i += 1
+        print(f'Chunk {i} is {len(page.page_content)} characters')
+        print(f'Vector for chunk {i} is {chunk_embeds[-1]}')
 
     return chunk_texts, chunk_page, chunk_embeds
 
 
-def save_embeds_metadata(pages, page_type):
+def save_embeds_metadata(pages):
     """
     Saves text, page numbers, and their embeddings to files, and returns a unique file UUID.
 
     Args:
         pages (list): List of page objects.
-        page_type (str): Type of pages ('ocr' or 'non-ocr').
 
     Returns:
         uuid.UUID: The UUID associated with the saved files.
@@ -286,7 +324,7 @@ def save_embeds_metadata(pages, page_type):
 
     file_uuid = uuid.uuid4()
 
-    chunk_texts, chunk_page, chunk_embeds = embeds_metadata(pages, page_type)
+    chunk_texts, chunk_page, chunk_embeds = embeds_metadata(pages)
 
     os.makedirs(data_dir_path, exist_ok=True)
     torch.save(torch.tensor(chunk_embeds), f"{data_dir_path}/{file_uuid}-pt.pt")
@@ -333,8 +371,10 @@ def retreiver(
     cosine_similarity_scores = F.cosine_similarity(query_embedding, loaded_embeddings)
     top_k = torch.topk(
         cosine_similarity_scores,
-        k=5 if len(cosine_similarity_scores) >= 5 else len(cosine_similarity_scores),
+        k=10 if len(cosine_similarity_scores) >= 10 else len(cosine_similarity_scores),
     )
+    print(cosine_similarity_scores)
+    print(top_k)
     top_chunks = top_k.indices.tolist()
     retrieved_chunks_df = chunks_df.iloc[top_chunks]
     chunk_final = "\n\n".join(
@@ -343,14 +383,15 @@ def retreiver(
         "---- END OF CHUNK ----"
         for index, row in retrieved_chunks_df.iterrows()
     )
+    print(chunk_final)
     return chunk_final
 
 
 if __name__ == "__main__":
-    pages, ocr_status = read_pdf(
+    pages = read_pdf(
         "/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/NPL- D2 Document.pdf"
     )
-    file_uuid = save_embeds_metadata(pages, ocr_status)
+    file_uuid = save_embeds_metadata(pages)
     df, loaded_embeddings = embeds_metadata_loader(file_uuid)
 
     query = "Who was the author supervised by?"

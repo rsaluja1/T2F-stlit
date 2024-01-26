@@ -4,10 +4,12 @@ import openai
 import base64
 import asyncio
 import streamlit as st
-from utils import read_pdf, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
+from utils import read_pdf, token_counter, docx_to_pdf, data_chunker, retreiver, save_embeds_metadata, embeds_metadata_loader
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
-
+# from dotenv import load_dotenv
+#
+# load_dotenv()
 
 temp_path = "temp_data"
 dirname = os.path.dirname(os.path.abspath(__file__))
@@ -84,18 +86,18 @@ def displayPDF(file_path):
 @st.cache_data
 def embeds_metadata_save(file_path):
     print(file_path)
-    pages, ocr_status = read_pdf(file_path)
+    pages = read_pdf(file_path)
     print("saving embeds metada")
-    file_uuid = save_embeds_metadata(pages,ocr_status)
+    file_uuid = save_embeds_metadata(pages)
     return file_uuid
 
 
 # @st.cache_data
 # def chunker_indexer(file_path):
 #     print("chunker running")
-#     pages, ocr_status = read_pdf(file_path)
+#     pages = read_pdf(file_path)
 #     #indexer(pages)
-#     indexer(pages, ocr_status)
+#     indexer(pages)
 
 # sidebar
 # with st.sidebar:
