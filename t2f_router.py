@@ -18,7 +18,7 @@ gratitude = Route(name="gratitude", utterances=routes["GRATITUDE"]["UTTERENCES"]
 sports_talk = Route(name="sports_talk", utterances=routes["SPORTS_TALK"]["UTTERENCES"])
 politics_discussion = Route(name="politics_discussion", utterances=routes["POLITICS_DISCUSSION"]["UTTERENCES"])
 chunk_discussions = Route(name="chunk_discussions", utterances=routes["CHUNKS_DISCUSSION"]["UTTERENCES"])
-
+chunk_discussions = Route(name="prompt_leaks", utterances=routes["PROMPT_LEAKS"]["UTTERENCES"])
 
 
 def get_route_name(question: str) -> str:

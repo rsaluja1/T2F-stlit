@@ -208,7 +208,7 @@ def generative_layer(question: str) -> str:
         for gen in streamer:
             yield gen
 
-    elif route_name == "sports_talk" or route_name == "politics_discussion" or route_name == "chunk_discussions":
+    elif route_name == "sports_talk" or route_name == "politics_discussion" or route_name == "chunk_discussions" or route_name == "prompt_leaks":
         streamer = string_streamer("My Appologies! I won't be able to answer this question.")
         for str in streamer:
             yield str

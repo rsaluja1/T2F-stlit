@@ -98,7 +98,7 @@ def data_chunker(file_path: str):
     """
     # managing chunk size with recursivecharsplitter
     splitter_page = RecursiveCharacterTextSplitter(
-        chunk_size=2000, chunk_overlap=0, length_function=len
+        chunk_size=500, chunk_overlap=0, length_function=len
     )
 
     loader = PyPDFLoader(file_path)
@@ -118,6 +118,7 @@ def read_pdf(input_file_path: str):
     reader = PdfReader(input_file_path)
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
+    print(type(extracted_page))
 
     if len(extracted_page) > 0:
         pages, ocr_status = data_chunker(input_file_path), "non-ocr"
@@ -330,8 +331,11 @@ def retreiver(
     Returns:
     str: Formatted string of the top 5 chunks with their page numbers and texts.
     """
+    #torch.set_printoptions(precision=10)
     query_embedding = torch.tensor(vectoriser(query)).view(1, -1)
+    loaded_embeddings
     cosine_similarity_scores = F.cosine_similarity(query_embedding, loaded_embeddings)
+    print(cosine_similarity_scores)
     top_k = torch.topk(
         cosine_similarity_scores,
         k=10 if len(cosine_similarity_scores) >= 10 else len(cosine_similarity_scores),
@@ -344,6 +348,9 @@ def retreiver(
         "---- END OF CHUNK ----"
         for index, row in retrieved_chunks_df.iterrows()
     )
+
+    print(top_chunks)
+    print(chunk_final)
     return chunk_final
 
 
@@ -370,4 +377,6 @@ if __name__ == "__main__":
     # pages, status= read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/US2023214776A1 (2).pdf")
     # indexer(pages, status)
 
-    print(vectoriser("This is a test string"))
+    #print(vectoriser("This is a test string"))
+
+    read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/managing_ai_risks.pdf")
