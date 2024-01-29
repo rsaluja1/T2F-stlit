@@ -57,10 +57,12 @@ def read_pdf(input_file_path: str):
     """
 
     reader = PdfReader(input_file_path)
+    pages = []
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
+        pages.append(extracted_page)
     
-    if len(extracted_page) > 0:
+    if len(pages) > 0:
         pages, page_type = data_chunker(input_file_path), "non-ocr"
         return pages, page_type
     else:
