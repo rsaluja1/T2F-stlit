@@ -116,16 +116,25 @@ def read_pdf(input_file_path: str):
     :rtype: str
     """
     reader = PdfReader(input_file_path)
+    extract_pages = []
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
-    print(type(extracted_page))
+        extract_pages.append(extracted_page)
+    less_than_100_chars = any(len(element) < 100 for element in extract_pages)
 
-    if len(extracted_page) > 0:
-        pages, ocr_status = data_chunker(input_file_path), "non-ocr"
-        return pages, ocr_status
-    else:
+    if less_than_100_chars:
         file_text, ocr_status = azure_ocr(input_file_path), "ocr"
         return file_text, ocr_status
+    else:
+        pages, ocr_status = data_chunker(input_file_path), "non-ocr"
+        return pages, ocr_status
+
+    # if len(extracted_page) > 0:
+    #     pages, ocr_status = data_chunker(input_file_path), "non-ocr"
+    #     return pages, ocr_status
+    # else:
+    #     file_text, ocr_status = azure_ocr(input_file_path), "ocr"
+    #     return file_text, ocr_status
 
 
 def token_counter(string: str, model_name: str) -> int:
