@@ -98,7 +98,7 @@ def data_chunker(file_path: str):
     """
     # managing chunk size with recursivecharsplitter
     splitter_page = RecursiveCharacterTextSplitter(
-        chunk_size=500, chunk_overlap=0, length_function=len
+        chunk_size=2000, chunk_overlap=0, length_function=len
     )
 
     loader = PyPDFLoader(file_path)
