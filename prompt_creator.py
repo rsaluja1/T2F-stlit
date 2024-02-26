@@ -1,5 +1,5 @@
 import os
-from utils import read_yaml_file, read_pdf, token_counter
+from utils import read_yaml_file, token_counter
 
 parent_prompt_path = "prompts"
 dirname = os.path.dirname(os.path.abspath(__file__))

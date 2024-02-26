@@ -15,7 +15,7 @@ def hyperparam_handler(route_name: str, chunk_count: str = None):
     #token_count = token_counter(chunk_text, model_name="gpt-4")
     
     hp_dict = {
-        "model_name": hp["model"] if chunk_count is None else hp["model"] if chunk_count <= 6000 else hp["model_32k"],
+        "model_name": hp["model"] if chunk_count is None else hp["model"] if chunk_count <= 4000 else hp["model_32k"],
         "temperature": hp["temperature"],
         "max_tokens": hp["max_tokens"],
         "top_p": hp["top_p"],

@@ -12,7 +12,7 @@ from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
-from langchain_openai import AzureOpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings, OpenAIEmbeddings
 
 
 dirname = os.path.dirname(os.path.abspath(__file__))
@@ -106,28 +106,91 @@ def data_chunker(file_path: str):
 
     return pages
 
-
-def read_pdf(input_file_path: str):
-    """Returns the text of the input PDF if the PDF has already been OCR'd
-
-    :param input_file_path: path to PDF
-    :type input_file_path: str
-    :return: string with PDF text content if PDF has already been OCR'd
-    :rtype: str
+def data_chunker_azure(page_text: List[str], metadata: List[dict]):
     """
+    Splits the content of a PDF file that has been OCR'd with Azure OCR into chunks of text.
+
+    Each chunk is up to 2000 characters, with no overlap between chunks.
+
+    Parameters:
+    page_text (List[str]): A list where each element is a string of the text of each page
+    metadata (List[dict]): A list where each element is a dictionary of the page numbers
+    corresponding to the strings in page_text
+
+    Returns:
+    A list of text chunks from a PDF file that has been OCR'd with Azure OCR.
+    """
+
+    # managing chunk size with recursivecharsplitter
+    splitter_page = RecursiveCharacterTextSplitter(
+        chunk_size=2000, chunk_overlap=0, length_function=len
+    )
+
+    pages = splitter_page.create_documents(page_text, metadata)
+
+    return pages
+
+
+
+def check_ocr_to_vectorize(input_file_path: str):
+    """
+    Checks if a PDF needs OCR and vectorizes its content.
+
+    This function reads a PDF file, extracts text from each page, and checks if any page has less than 100 characters. 
+    If so, it assumes the PDF needs OCR and uses `data_chunker_azure` to vectorize its content. 
+    Otherwise, it uses `data_chunker` to vectorize the content.
+
+    :param input_file_path: The path to the PDF file.
+    :type input_file_path: str
+    :return: Vectorized content of the PDF.
+    """
+
     reader = PdfReader(input_file_path)
+
     extract_pages = []
+    extracted_page = None
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
         extract_pages.append(extracted_page)
+
+    #sometimes even non-ocrd pages have some text in the header that is added later and ocrable. this could give false poisive while chekcing of OCR.
+    # we set char count limit to 100 to guard against that false positive. 
     less_than_100_chars = any(len(element) < 100 for element in extract_pages)
 
-    if less_than_100_chars:
-        file_text, ocr_status = azure_ocr(input_file_path), "ocr"
-        return file_text, ocr_status
-    else:
-        pages, ocr_status = data_chunker(input_file_path), "non-ocr"
-        return pages, ocr_status
+    pages = data_chunker(input_file_path) if not less_than_100_chars else azure_ocr_to_vectorize(input_file_path)
+        
+    return pages
+
+
+# def read_pdf(input_file_path: str):
+#     """
+#     Extracts text from a PDF file. 
+
+#     If any page has less than 100 characters, it uses Azure's OCR service to extract the text. 
+#     Otherwise, it chunks the text content of the PDF and returns the chunks.
+
+#     :param input_file_path: The path to the PDF file.
+#     :type input_file_path: str
+#     :return: A tuple of the text content and a string indicating the OCR status ("ocr" or "non-ocr").
+#     :rtype: tuple
+#     """
+#     reader = PdfReader(input_file_path)
+#     extract_pages = []
+
+#     for i in range(len(reader.pages)):
+#         extracted_page = reader.pages[i].extract_text()
+#         extract_pages.append(extracted_page)
+#     #sometimes even non-ocrd pages have some text in the header that is added later and ocrable. this could give false poisive while chekcing of OCR.
+#     # we set char count limit to 100 to guard against that false positive. 
+#     less_than_100_chars = any(len(element) < 100 for element in extract_pages)
+
+#     if less_than_100_chars:
+#         file_text, ocr_status = azure_ocr(input_file_path), "ocr"
+#         return file_text, ocr_status
+#     else:
+#         pages, ocr_status = data_chunker(input_file_path), "non-ocr"
+#         return pages, ocr_status
+    
 
     # if len(extracted_page) > 0:
     #     pages, ocr_status = data_chunker(input_file_path), "non-ocr"
@@ -136,6 +199,7 @@ def read_pdf(input_file_path: str):
     #     file_text, ocr_status = azure_ocr(input_file_path), "ocr"
     #     return file_text, ocr_status
 
+    
 
 def token_counter(string: str, model_name: str) -> int:
     """
@@ -151,6 +215,40 @@ def token_counter(string: str, model_name: str) -> int:
     encoding = tiktoken.encoding_for_model(f"{model_name}")
     num_tokens = len(encoding.encode(string))
     return num_tokens
+
+
+def azure_ocr_to_vectorize(input_file_path: str):
+    #Set up Azure OCR client
+    document_analysis_client = DocumentAnalysisClient(
+        endpoint=azure_ocr_endpoint, credential=AzureKeyCredential(azure_ocr_key)
+    )
+
+    #Pass input file to Azure OCR client
+    with open(input_file_path, "rb") as f:
+        poller = document_analysis_client.begin_analyze_document(
+            "prebuilt-layout", document=f, features=[AnalysisFeature.LANGUAGES]
+        )
+
+    ocr_results = poller.result()
+
+    results_dict = ocr_results.to_dict()
+
+    metadata = []
+    page_text = []
+
+    #Loop through each page in results_dict to join the lines per page in a single string
+    for i in range(len(results_dict["pages"])):
+        content_list = [
+            results_dict["pages"][i]["lines"][k]["content"]
+            for k in range(len(results_dict["pages"][i]["lines"]))
+        ]
+        page_text.append(" ".join(content_list))
+        metadata.append({"page": i})
+
+    pages =  data_chunker_azure(page_text, metadata)
+
+    return pages
+
 
 
 def azure_ocr(input_file_path: str):
@@ -250,37 +348,48 @@ def vectoriser(text: str) -> List[float]:
     List[float]: Numerical embeddings of the input text.
     """
 
-    embeddings = AzureOpenAIEmbeddings(
-        azure_deployment=os.environ.get("AZURE_DEPLOYMENT"),
-        azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
-        api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
-        api_version=os.environ.get("AZURE_OPENAI_API_VERSION")
-    )
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small",
+                                  api_key=os.environ.get("OPENAI_API_KEY"))
+
+    
     return embeddings.embed_query(text)
 
-
-def embeds_metadata(pages, page_type):
+def embeds_metadata(pages):
     chunk_texts = []
     chunk_page = []
     chunk_embeds = []
 
     for page in pages:
-        chunk_texts.append(
-            page.page_content
-        ) if page_type == "non-ocr" else chunk_texts.append(page["page_content"])
-        chunk_page.append(
-            page.metadata["page"] + 1
-        ) if page_type == "non-ocr" else chunk_page.append(page["page_number"])
-        chunk_embeds.append(
-            vectoriser(page.page_content)
-        ) if page_type == "non-ocr" else chunk_embeds.append(
-            vectoriser(page["page_content"])
-        )
-
+        chunk_texts.append(page.page_content)
+        chunk_page.append(page.metadata["page"] + 1)
+        chunk_embeds.append(vectoriser(page.page_content))
+    
     return chunk_texts, chunk_page, chunk_embeds
 
 
-def save_embeds_metadata(pages, page_type):
+# def embeds_metadata(pages, page_type):
+#     chunk_texts = []
+#     chunk_page = []
+#     chunk_embeds = []
+
+
+#     for page in pages:
+#         chunk_texts.append(
+#             page.page_content
+#         ) if page_type == "non-ocr" else chunk_texts.append(page["page_content"])
+#         chunk_page.append(
+#             page.metadata["page"] + 1
+#         ) if page_type == "non-ocr" else chunk_page.append(page["page_number"])
+#         chunk_embeds.append(
+#             vectoriser(page.page_content)
+#         ) if page_type == "non-ocr" else chunk_embeds.append(
+#             vectoriser(page["page_content"])
+#         )
+
+#     return chunk_texts, chunk_page, chunk_embeds
+
+
+def save_embeds_metadata(pages):
     """
     Saves text, page numbers, and their embeddings to files, and returns a unique file UUID.
 
@@ -297,7 +406,7 @@ def save_embeds_metadata(pages, page_type):
 
     file_uuid = uuid.uuid4()
 
-    chunk_texts, chunk_page, chunk_embeds = embeds_metadata(pages, page_type)
+    chunk_texts, chunk_page, chunk_embeds = embeds_metadata(pages)
 
     os.makedirs(data_dir_path, exist_ok=True)
     torch.save(torch.tensor(chunk_embeds), f"{data_dir_path}/{file_uuid}-pt.pt")
@@ -388,4 +497,13 @@ if __name__ == "__main__":
 
     #print(vectoriser("This is a test string"))
 
-    read_pdf("/Users/rohitsaluja/Documents/Github-silo-ai/RightHub/T2F-stlit/temp_data/managing_ai_risks.pdf")
+    #read_pdf("temp_data/Invoice-A4012B25-0003 (1).pdf")
+
+    #print(len(vectoriser("This is hello world")))
+
+    #print(azure_ocr_to_vectorize("temp_data/US20150317431A1 (1).pdf"))
+
+    print(check_ocr_to_vectorize("temp_data/US20150317431A1 (1).pdf"))
+
+    # print(data_chunker("temp_data/33.161409-2022.11.23-21753929-1203-ocr.pdf"))
+    # print(azure_ocr_to_vectorize("temp_data/US20150317431A1 (1).pdf"))

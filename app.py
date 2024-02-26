@@ -1,12 +1,12 @@
 import os
 import time
 import openai
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 import base64
 import asyncio
 import streamlit as st
 from t2f_router import get_route_name
-from utils import read_pdf, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
+from utils import azure_ocr_to_vectorize, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 
@@ -86,9 +86,9 @@ def displayPDF(file_path):
 @st.cache_data
 def embeds_metadata_save(file_path):
     print(file_path)
-    pages, ocr_status = read_pdf(file_path)
+    pages = azure_ocr_to_vectorize(file_path)
     print("saving embeds metada")
-    file_uuid = save_embeds_metadata(pages,ocr_status)
+    file_uuid = save_embeds_metadata(pages)
     return file_uuid
 
 
@@ -164,15 +164,32 @@ def string_streamer(input_string: str):
         time.sleep(0.03)
         yield stream_str
 
-def generative_streamer(prompt,hp):
-    client = AzureOpenAI(
-        azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
-        api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-        api_key=os.environ.get("AZURE_OPENAI_API_KEY")
-    )
+def generative_streamer(prompt,hp,chunk_tokens):
+
+    if chunk_tokens <30000:
+        print(chunk_tokens)
+        print(hp)
+    
+        client = AzureOpenAI(
+            azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
+            api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY")
+        )
+        model_name = hp["model_name"]
+
+    elif chunk_tokens >30000 and chunk_tokens <120000:
+
+        client = OpenAI(
+                api_key = os.environ.get("OPENAI_API_KEY")
+            )
+        model_name = "gpt-4-turbo-preview"
+
+    else:
+        st.error("Your file is too big. Supply a smaller file.")
+
 
     response = client.chat.completions.create(
-        model=hp["model_name"],
+        model=model_name,
         messages=prompt,
         temperature=hp["temperature"],
         max_tokens=hp["max_tokens"],
@@ -193,7 +210,7 @@ def generative_streamer(prompt,hp):
             yield full_reply_content
 
 
-def generative_layer(question: str) -> str:
+def generative_layer(question: str):
     #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
     #df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
 
@@ -204,7 +221,7 @@ def generative_layer(question: str) -> str:
         prompt = prompt_creator(route_name,question)
         hp = hyperparam_handler(route_name)
 
-        streamer = generative_streamer(prompt,hp)
+        streamer = generative_streamer(prompt,hp,chunk_tokens=2000)
         for gen in streamer:
             yield gen
 
@@ -224,7 +241,7 @@ def generative_layer(question: str) -> str:
         hp = hyperparam_handler(route_name,chunk_tokens)
         #token_count = token_counter(file_text, "gpt-4")
 
-        streamer = generative_streamer(prompt,hp)
+        streamer = generative_streamer(prompt,hp,chunk_tokens)
         for gen in streamer:
             yield gen
 
