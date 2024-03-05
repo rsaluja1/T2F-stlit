@@ -22,7 +22,7 @@ def prompt_creator(route_name: str, user_query: str, retreived_chunks: str = Non
         return prompt
     
     else:
-        prompt_file = "talk_to_file_prompts-ivan-new.yaml"
+        prompt_file = "talk_to_file_prompts-ivan-new-ref-tests.yaml"
         prompt_path = os.path.join(dirname, parent_prompt_path, prompt_file)
         
         prompt = read_yaml_file(prompt_path)["TALK_TO_FILE_REFERENCING"]
