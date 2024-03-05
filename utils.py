@@ -360,7 +360,7 @@ def embeds_metadata(pages):
     chunk_embeds = []
 
     for page in pages:
-        if len(page.page_content) > 150:
+        if len(page.page_content) > 200:
             chunk_texts.append(page.page_content)
             chunk_page.append(page.metadata["page"] + 1)
             chunk_embeds.append(vectoriser(page.page_content))
