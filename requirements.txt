@@ -37,6 +37,7 @@ gitdb==4.0.10
 GitPython==3.1.38
 googleapis-common-protos==1.62.0
 greenlet==3.0.1
+groq==0.4.2
 grpc-gateway-protoc-gen-openapiv2==0.1.0
 grpcio==1.60.0
 h11==0.14.0

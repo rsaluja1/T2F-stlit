@@ -1,6 +1,7 @@
 import os
 import time
 import openai
+from groq import Groq
 from openai import AzureOpenAI, OpenAI
 import base64
 import asyncio
@@ -170,43 +171,32 @@ def generative_streamer(prompt,hp,chunk_tokens):
         print(chunk_tokens)
         print(hp)
     
-        client = AzureOpenAI(
-            azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
-            api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY")
+        client = Groq(
+        api_key="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",
         )
-        model_name = hp["model_name"]
-
-    elif chunk_tokens >30000 and chunk_tokens <120000:
-
-        client = OpenAI(
-                api_key = os.environ.get("OPENAI_API_KEY")
-            )
-        model_name = "gpt-4-turbo-preview"
+        model_name = "mixtral-8x7b-32768"
 
     else:
         st.error("Your file is too big. Supply a smaller file.")
 
 
-    response = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model=model_name,
         messages=prompt,
         temperature=hp["temperature"],
         max_tokens=hp["max_tokens"],
         top_p=hp["top_p"],
-        frequency_penalty=hp["frequency_penalty"],
-        presence_penalty=hp["presense_penalty"],
         stop=hp["stop_sequences"],
         stream=True,
     )
 
+
     full_reply_content = ""
 
-    for chunk in response:
-        if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
             content = chunk.choices[0].delta.content
             full_reply_content += content
-            time.sleep(0.02)
             yield full_reply_content
 
 
