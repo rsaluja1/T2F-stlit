@@ -360,7 +360,7 @@ def embeds_metadata(pages):
     chunk_embeds = []
 
     for page in pages:
-        if len(page.page_content) > 200:
+        if len(page.page_content) > 250:
             chunk_texts.append(page.page_content)
             chunk_page.append(page.metadata["page"] + 1)
             chunk_embeds.append(vectoriser(page.page_content))
@@ -457,7 +457,7 @@ def retreiver(
     print(cosine_similarity_scores)
     top_k = torch.topk(
         cosine_similarity_scores,
-        k=10 if len(cosine_similarity_scores) >= 10 else len(cosine_similarity_scores),
+        k=20 if len(cosine_similarity_scores) >= 20 else len(cosine_similarity_scores),
     )
     top_chunks = top_k.indices.tolist()
     retrieved_chunks_df = chunks_df.iloc[top_chunks]
