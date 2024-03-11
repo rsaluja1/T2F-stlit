@@ -2,6 +2,7 @@ import os
 import time
 import openai
 from openai import AzureOpenAI, OpenAI
+from dotenv import load_dotenv
 import base64
 import asyncio
 import streamlit as st
@@ -10,6 +11,7 @@ from utils import azure_ocr_to_vectorize, token_counter, docx_to_pdf, data_chunk
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 
+load_dotenv()
 
 temp_path = "temp_data"
 dirname = os.path.dirname(os.path.abspath(__file__))
