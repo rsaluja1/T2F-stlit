@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import yaml
 import uuid
 import torch
@@ -14,7 +15,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
 from langchain_openai import AzureOpenAIEmbeddings, OpenAIEmbeddings
 
-
+load_dotenv()
 dirname = os.path.dirname(os.path.abspath(__file__))
 data_dir_path = os.path.join(dirname, "data")
 
@@ -36,10 +37,6 @@ import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
-
-
-azure_ocr_endpoint = os.environ.get("AZURE_OCR_ENDPOINT")
-azure_ocr_key = os.environ.get("AZURE_SECRET_KEY")
 
 
 def read_text_file(file_path: str) -> str:
@@ -218,12 +215,12 @@ def token_counter(string: str, model_name: str) -> int:
 
 
 def azure_ocr_to_vectorize(input_file_path: str):
-    #Set up Azure OCR client
+    # Set up Azure OCR client
     document_analysis_client = DocumentAnalysisClient(
         endpoint=azure_ocr_endpoint, credential=AzureKeyCredential(azure_ocr_key)
     )
 
-    #Pass input file to Azure OCR client
+    # Pass input file to Azure OCR client
     with open(input_file_path, "rb") as f:
         poller = document_analysis_client.begin_analyze_document(
             "prebuilt-layout", document=f, features=[AnalysisFeature.LANGUAGES]
@@ -236,7 +233,7 @@ def azure_ocr_to_vectorize(input_file_path: str):
     metadata = []
     page_text = []
 
-    #Loop through each page in results_dict to join the lines per page in a single string
+    # Loop through each page in results_dict to join the lines per page in a single string
     for i in range(len(results_dict["pages"])):
         content_list = [
             results_dict["pages"][i]["lines"][k]["content"]
@@ -245,7 +242,7 @@ def azure_ocr_to_vectorize(input_file_path: str):
         page_text.append(" ".join(content_list))
         metadata.append({"page": i})
 
-    pages =  data_chunker_azure(page_text, metadata)
+    pages = data_chunker_azure(page_text, metadata)
 
     return pages
 
