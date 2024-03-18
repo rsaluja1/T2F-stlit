@@ -7,6 +7,7 @@ import tiktoken
 import subprocess
 import pandas as pd
 from typing import List
+from openai import OpenAI
 import torch.nn.functional as F
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
@@ -345,11 +346,18 @@ def vectoriser(text: str) -> List[float]:
     List[float]: Numerical embeddings of the input text.
     """
 
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small",
-                                  api_key=os.environ.get("OPENAI_API_KEY"))
+    client = OpenAI()
+
+    response = client.embeddings.create(
+        input=text,
+        model="text-embedding-3-small"
+    )
+
+    #embeddings = OpenAIEmbeddings(model="text-embedding-3-small",
+                                  #api_key=os.environ.get("OPENAI_API_KEY"))
 
     
-    return embeddings.embed_query(text)
+    return response.data[0].embedding
 
 def embeds_metadata(pages):
     chunk_texts = []
