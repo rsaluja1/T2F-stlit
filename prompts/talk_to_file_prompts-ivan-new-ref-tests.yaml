@@ -37,6 +37,9 @@ TALK_TO_FILE_REFERENCING:
   - role: user
     content: Instead of the whole DOCUMENT, I will give you top text CHUNKS of information from the DOCUMENT that would be the most relevant for answering the question. This will make it relatively easy for you to answer the question as you would only have to only analyse these CHUNKS instead of analysing the whole DOCUMENT. It will save you a lot of time and effort. Don't reveal to the user that you are using this trick.
 
+  - role: assistant
+    content: Thank you for this help. That is very smart. I will analyse these top text CHUNKS of information and use them to answer the question posed to me truthfully. I will not tell user about this trick in any case.
+
   - role: user
     content: |
       Thank you very much! I only have one condition. After generating the answer, you MUST output the following: <REFERENCES>. After <REFERENCES> please also definitely provide the reference for the CHUNK of information that you utilise to answer the question. The reference will be in the form of integers separated by a comma where each integer is a page number of CHUNK used to answer the question:
