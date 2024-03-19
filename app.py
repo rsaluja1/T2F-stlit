@@ -1,22 +1,26 @@
 import os
 import time
 import openai
+from llama_index.core import SimpleDirectoryReader
 from openai import AzureOpenAI, OpenAI
 from dotenv import load_dotenv
 import base64
 import asyncio
 import streamlit as st
+from starlette.responses import StreamingResponse
+
 from t2f_router import get_route_name
-from utils import azure_ocr_to_vectorize, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
+from utils import (token_counter, docx_to_pdf, build_sentence_window_index,
+                   get_sentence_window_query_engine, convert_to_llidx_docs)
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
+from llama_index.llms.openai import OpenAI
 
 load_dotenv()
 
 temp_path = "temp_data"
 dirname = os.path.dirname(os.path.abspath(__file__))
 temp_folder_path = os.path.join(dirname, temp_path)
-
 
 st.set_page_config(layout="wide")
 
@@ -76,82 +80,42 @@ def displayPDF(file_path):
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
-# def displayPDF(uploaded_file):
-#     # Read file as bytes:
-#     bytes_data = uploaded_file.getvalue()
-#     st.write(uploaded_file.getvalue())
-#     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
-#     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
-#     st.markdown(pdf_display, unsafe_allow_html=True)
-
-
-@st.cache_data
-def embeds_metadata_save(file_path):
-    print(file_path)
-    pages = azure_ocr_to_vectorize(file_path)
-    print("saving embeds metada")
-    file_uuid = save_embeds_metadata(pages)
-    return file_uuid
-
-
-# @st.cache_data
-# def chunker_indexer(file_path):
-#     print("chunker running")
-#     pages, ocr_status = read_pdf(file_path)
-#     #indexer(pages)
-#     indexer(pages, ocr_status)
-
-# sidebar
-# with st.sidebar:
-#     st.title("🤗💬 Talk to File")
-#     # Upload PDF file
-#     uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf", "docx"])
-#     if uploaded_pdf is not None:
-#         saved_file_path = save_file(uploaded_pdf)
-#         st.markdown(
-#             "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-#             unsafe_allow_html=True,
-#         )
-#         with st.spinner("Uploading and Reading PDF..."):
-#             chunker_indexer(saved_file_path)
-#             displayPDF(saved_file_path)
-#     else:
-#         st.cache_data.clear()
-
-#     # add_vertical_space(20)
-#     # st.write("Made by RightHub AI 🔥")
-    
 # sidebar
 with st.sidebar:
     st.title("🤗💬 Talk to File")
     # Upload PDF file
     uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf"])
+    # Define the LLM to use for creating the index
+    llm = OpenAI(model="gpt-4-turbo-preview", temperature=0.1)
 
     if uploaded_pdf is not None:
         saved_file_path = save_file(uploaded_pdf)
+
         # Check if the current file has been processed already
         if "file_processed" not in st.session_state or st.session_state["file_processed"] != uploaded_pdf.name:
-           
             with st.spinner("Uploading and Reading PDF..."):
-                file_uuid = embeds_metadata_save(saved_file_path)
+                # Convert file to list of LlamaIndex Documents
+                docs = convert_to_llidx_docs(saved_file_path)
+                # Build the Sentence Window index
+                index = build_sentence_window_index(docs, llm=llm)
+                # Build the Query Engine
+                query_engine = get_sentence_window_query_engine(index)
             # Update the session state to indicate this file has been processed
             st.session_state["file_processed"] = uploaded_pdf.name
-            st.session_state["file_uuid"] = file_uuid
-            st.session_state["df"], st.session_state["loaded_embeddings"] = embeds_metadata_loader(st.session_state["file_uuid"])
+            st.session_state["index"] = index
+            st.session_state["query_engine"] = query_engine
 
-        
         st.markdown(
-                    "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-                    unsafe_allow_html=True,
-            )
+            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
+            unsafe_allow_html=True,
+        )
         displayPDF(saved_file_path)
     else:
         st.cache_data.clear()
         # Optionally, clear the processed file flag when no file is uploaded
         if "file_processed" in st.session_state:
             del st.session_state["file_processed"]
-        if "file_uuid" in st.session_state:
-            del st.session_state["file_uuid"]
+
 
 def string_streamer(input_string: str):
     """
@@ -166,12 +130,12 @@ def string_streamer(input_string: str):
         time.sleep(0.03)
         yield stream_str
 
-def generative_streamer(prompt,hp,chunk_tokens):
 
-    if chunk_tokens <30000:
+def generative_streamer(prompt, hp, chunk_tokens):
+    if chunk_tokens < 30000:
         print(chunk_tokens)
         print(hp)
-    
+
         client = AzureOpenAI(
             azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
             api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
@@ -179,16 +143,15 @@ def generative_streamer(prompt,hp,chunk_tokens):
         )
         model_name = hp["model_name"]
 
-    elif chunk_tokens >30000 and chunk_tokens <120000:
+    elif chunk_tokens > 30000 and chunk_tokens < 120000:
 
         client = OpenAI(
-                api_key = os.environ.get("OPENAI_API_KEY")
-            )
+            api_key=os.environ.get("OPENAI_API_KEY")
+        )
         model_name = "gpt-4-turbo-preview"
 
     else:
         st.error("Your file is too big. Supply a smaller file.")
-
 
     response = client.chat.completions.create(
         model=model_name,
@@ -213,170 +176,65 @@ def generative_streamer(prompt,hp,chunk_tokens):
 
 
 def generative_layer(question: str):
-    #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
-    #df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
+    # hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
+    # df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
 
     route_name = get_route_name(question)
     print(route_name)
 
     if route_name == "chitchat" or route_name == "gratitude":
-        prompt = prompt_creator(route_name,question)
+        prompt = prompt_creator(route_name, question)
         hp = hyperparam_handler(route_name)
 
-        streamer = generative_streamer(prompt,hp,chunk_tokens=2000)
+        streamer = generative_streamer(prompt, hp, chunk_tokens=2000)
         for gen in streamer:
             yield gen
 
-    elif route_name == "sports_talk" or route_name == "politics_discussion" or route_name == "chunk_discussions" or route_name == "prompt_leaks":
-        streamer = string_streamer("My Appologies! I won't be able to answer this question.")
-        for str in streamer:
-            yield str
+    elif (route_name == "sports_talk" or route_name == "politics_discussion" or
+          route_name == "chunk_discussions" or route_name == "prompt_leaks"):
+        streamer = string_streamer("My Apologies! I won't be able to answer this question.")
+        for stream in streamer:
+            yield stream
 
     else:
+        index, query_engine = st.session_state['index'], st.session_state['query_engine']
+        response = query_engine.query(question)
+        ref_set = set()
+        for i in range(len(response.source_nodes)):
+            page_number = response.source_nodes[i].node.metadata["page_label"]
+            ref_set.add(page_number)
+        ref_list = list(ref_set)
+        ref_list.sort()
 
-        df, loaded_embeddings = st.session_state["df"], st.session_state["loaded_embeddings"]
-        route_name = get_route_name(question)
-        retreived_chunks = retreiver(question,loaded_embeddings,df)
+        ref_str = ','.join([str(num) for num in ref_list])
 
+        print(response)
+        yield response.response_txt
+        ref_streamer = string_streamer(f'<REFERENCES>{ref_str}<END_OF_REFERENCES>')
 
-        prompt, chunk_tokens = prompt_creator(route_name,question,retreived_chunks)
-        hp = hyperparam_handler(route_name,chunk_tokens)
-        #token_count = token_counter(file_text, "gpt-4")
-
-        streamer = generative_streamer(prompt,hp,chunk_tokens)
-        for gen in streamer:
-            yield gen
-
-    # #if chunk_tokens <= 30000:
-    # client = AzureOpenAI(
-    # azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
-    # api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-    # api_key=os.environ.get("AZURE_OPENAI_API_KEY")
-    # )
-
-    #         # #openai.api_type = st.secrets["AZURE_OPENAI_API_TYPE"]
-    #         # openai.api_type = os.environ.get("AZURE_OPENAI_API_TYPE")
-    #         # #openai.api_base = st.secrets["AZURE_OPENAI_API_BASE"]
-    #         # openai.api_base = os.environ.get("AZURE_OPENAI_API_BASE")
-    #         # #openai.api_version = st.secrets["AZURE_OPENAI_API_VERSION"]
-    #         # openai.api_version = os.environ.get("AZURE_OPENAI_API_VERSION")
-    #         # #openai.api_key = st.secrets["AZURE_OPENAI_API_KEY"]
-    #         # openai.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
-
-    # response = client.chat.completions.create(
-    #     model=hp["model_name"],
-    #     messages=prompt,
-    #     temperature=hp["temperature"],
-    #     max_tokens=hp["max_tokens"],
-    #     top_p=hp["top_p"],
-    #     frequency_penalty=hp["frequency_penalty"],
-    #     presence_penalty=hp["presense_penalty"],
-    #     stop=hp["stop_sequences"],
-    #     stream=True,
-    #     )
-
-    # full_reply_content = ""
-
-    # for chunk in response:
-    #     if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
-    #         content = chunk.choices[0].delta.content
-    #         full_reply_content += content
-    #         time.sleep(0.03)
-    #         yield full_reply_content
-                
-
-
-        # collected_messages = []
-
-        # for chunk in response:
-        #     chunk_message = (
-        #         chunk["choices"][0]["delta"] if chunk["choices"] else ""
-        #     )  # extract the message
-
-        #     # if not isinstance(chunk_message, str):
-        #     #     time.sleep(0.04)
-        #     #     yield chunk_message.get("content", "")
-
-        #     collected_messages.append(chunk_message)
-
-        #     full_reply_content = "".join(
-        #         [
-        #             m.get("content", "")
-        #             for m in collected_messages
-        #             if not isinstance(m, str)
-        #         ]
-        #     )
-
-        #     time.sleep(0.02)
-        #     yield full_reply_content
-
-    #elif chunk_tokens > 30000 and chunk_tokens < 120000:
-    # if chunk_tokens <= 120000: 
-        
-    #     #print(os.environ.get("OPENAI_API_TYPE"), os.environ.get("OPENAI_API_BASE"),os.environ.get("OPENAI_API_KEY"))
-    #     #openai.api_type = st.secrets["OPENAI_API_TYPE"]
-    #     openai.api_type = os.environ.get("OPENAI_API_TYPE")
-    #     #openai.api_base = st.secrets["OPENAI_API_BASE"]
-    #     openai.api_base = os.environ.get("OPENAI_API_BASE")
-    #     openai.api_version = None
-    #     #openai.api_key = st.secrets["OPENAI_API_KEY"]
-    #     openai.api_key = os.environ.get("OPENAI_API_KEY")
-        
-    #     response = openai.ChatCompletion.create(
-    #         model="gpt-4-1106-preview",
-    #         messages=prompt,
-    #         temperature=hp["temperature"],
-    #         max_tokens=hp["max_tokens"],
-    #         top_p=hp["top_p"],
-    #         frequency_penalty=hp["frequency_penalty"],
-    #         presence_penalty=hp["presense_penalty"],
-    #         stop=hp["stop_sequences"],
-    #         stream=True,
-    #     )
-
-    #     collected_chunks = []
-    #     collected_messages = []
-
-    #     for chunk in response:
-    #         collected_chunks.append(chunk)  # save the event response
-    #         chunk_message = chunk["choices"][0]["delta"]  # extract the message
-    #         collected_messages.append(chunk_message)  # save the message
-    #         full_reply_content = "".join(
-    #             [m.get("content", "") for m in collected_messages]
-    #         )
-    #         time.sleep(0.05)
-    #         yield full_reply_content
-
-    # else:
-    #     st.error("Your file is too big. Supply a smaller file.")
-
-
-# @st.cache_data
-# def pdf_reader(file_path):
-#     pdf_text = read_pdf(file_path)
-#     return pdf_text
+        for ref in ref_streamer:
+            yield ref
 
 
 def main():
     if uploaded_pdf is not None:
 
         if "messages" not in st.session_state:
-                st.session_state.messages = []
-
-        if st.session_state.messages:
-            for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+            st.session_state.messages = []
 
         if user_message := st.chat_input("Ask a question?"):
             st.session_state.messages.append(
-                    {"role": "user", "content": user_message}
+                {"role": "user", "content": user_message}
             )
-            with st.chat_message("user"):
-                st.markdown(user_message)
 
-            with st.spinner("Generating Response"):
-                with st.chat_message("assistant"):
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # If last message is not from assistant, generate a new response
+        if st.session_state.messages[-1]["role"] != "assistant":
+            with st.chat_message("assistant"):
+                with st.spinner("Generating Response"):
                     message_placeholder = st.empty()
                     gen_iter = generative_layer(user_message)
 
@@ -385,40 +243,11 @@ def main():
                     message_placeholder.markdown(gen)
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen}
-                    )    
+                    )
     else:
         for key in st.session_state.keys():
             del st.session_state[key]
 
-            
 
-
-        #token_count = token_counter(pdf_text, "gpt-4")
-        #if token_count >= 120000:
-            #st.error("Your file is too big. Please upload a smaller file.")
-        #else:
-            
-
-            
-
-            # if user_message := st.chat_input("Ask a question?"):
-            #     st.session_state.messages.append(
-            #         {"role": "user", "content": user_message}
-            #     )
-            #     with st.chat_message("user"):
-            #         st.markdown(user_message)
-
-            #     with st.spinner("Generating Response"):
-            #         with st.chat_message("assistant"):
-            #             message_placeholder = st.empty()
-            #             gen_iter = generative_layer(pdf_text, user_message)
-
-            #             for gen in gen_iter:
-            #                 message_placeholder.markdown(f"{gen}" + "|")
-            #             message_placeholder.markdown(gen)
-            #             st.session_state.messages.append(
-            #                 {"role": "assistant", "content": gen}
-            #             )
-    
 if __name__ == "__main__":
     main()
