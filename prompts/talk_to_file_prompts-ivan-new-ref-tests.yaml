@@ -82,7 +82,7 @@ TALK_TO_FILE_REFERENCING:
   - role: assistant
     content: Thanks! I will now use the DOCUMENT to answer your questions. What is your question?
 
-  - role: assistant
+  - role: user
     content: <<user_question>>
 
   - role: user
