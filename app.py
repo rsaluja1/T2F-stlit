@@ -1,17 +1,14 @@
 import os
 import time
-import openai
-from llama_index.core import SimpleDirectoryReader
 from openai import AzureOpenAI, OpenAI
 from dotenv import load_dotenv
 import base64
-import asyncio
 import streamlit as st
 from starlette.responses import StreamingResponse
 
 from t2f_router import get_route_name
 from utils import (token_counter, docx_to_pdf, build_sentence_window_index,
-                   get_sentence_window_query_engine, convert_to_llidx_docs)
+                   convert_to_llidx_docs, get_sentence_window_chat_engine)
 from prompt_creator import prompt_creator
 from hyperparams_handler import hyperparam_handler
 from llama_index.llms.openai import OpenAI
@@ -93,17 +90,20 @@ with st.sidebar:
 
         # Check if the current file has been processed already
         if "file_processed" not in st.session_state or st.session_state["file_processed"] != uploaded_pdf.name:
+            processing_start_time = time.time()
             with st.spinner("Uploading and Reading PDF..."):
                 # Convert file to list of LlamaIndex Documents
                 docs = convert_to_llidx_docs(saved_file_path)
                 # Build the Sentence Window index
                 index = build_sentence_window_index(docs, llm=llm)
                 # Build the Query Engine
-                query_engine = get_sentence_window_query_engine(index)
+                chat_engine = get_sentence_window_chat_engine(index)
             # Update the session state to indicate this file has been processed
-            st.session_state["file_processed"] = uploaded_pdf.name
-            st.session_state["index"] = index
-            st.session_state["query_engine"] = query_engine
+            st.session_state.file_processed = uploaded_pdf.name
+            st.session_state.index = index
+            st.session_state.chat_engine = chat_engine
+
+            print(f'Processing time: {time.time() - processing_start_time}')
 
         st.markdown(
             "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
@@ -176,8 +176,6 @@ def generative_streamer(prompt, hp, chunk_tokens):
 
 
 def generative_layer(question: str):
-    # hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
-    # df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
 
     route_name = get_route_name(question)
     print(route_name)
@@ -197,44 +195,45 @@ def generative_layer(question: str):
             yield stream
 
     else:
-        index, query_engine = st.session_state['index'], st.session_state['query_engine']
-        response = query_engine.query(question)
-        ref_set = set()
-        for i in range(len(response.source_nodes)):
-            page_number = response.source_nodes[i].node.metadata["page_label"]
-            ref_set.add(page_number)
-        ref_list = list(ref_set)
-        ref_list.sort()
+        chat_engine = st.session_state['chat_engine']
+        response = chat_engine.stream_chat(question)
 
-        ref_str = ','.join([str(num) for num in ref_list])
+        full_reply_content = ""
 
-        print(response)
-        yield response.response_txt
-        ref_streamer = string_streamer(f'<REFERENCES>{ref_str}<END_OF_REFERENCES>')
-
-        for ref in ref_streamer:
-            yield ref
+        for token in response.response_gen:
+            print(token, end="")
+            full_reply_content += token
+            time.sleep(0.02)
+            yield full_reply_content
 
 
 def main():
     if uploaded_pdf is not None:
 
-        if "messages" not in st.session_state:
+        if "chat_engine" not in st.session_state.keys():  # Initialize the chat engine
+            st.session_state.chat_engine = chat_engine
+
+        if "messages" not in st.session_state.keys():
             st.session_state.messages = []
+
+        if st.session_state.messages:
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
 
         if user_message := st.chat_input("Ask a question?"):
             st.session_state.messages.append(
                 {"role": "user", "content": user_message}
             )
 
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+            with st.chat_message("user"):
+                st.markdown(user_message)
 
-        # If last message is not from assistant, generate a new response
-        if st.session_state.messages[-1]["role"] != "assistant":
-            with st.chat_message("assistant"):
-                with st.spinner("Generating Response"):
+            with st.spinner("Generating Response"):
+
+                answer_start_time = time.time()
+
+                with st.chat_message("assistant"):
                     message_placeholder = st.empty()
                     gen_iter = generative_layer(user_message)
 
@@ -244,6 +243,7 @@ def main():
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen}
                     )
+                    print(f"Generation time: {time.time() - answer_start_time}")
     else:
         for key in st.session_state.keys():
             del st.session_state[key]
