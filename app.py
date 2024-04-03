@@ -1,15 +1,25 @@
+import asyncio
+import base64
 import os
 import time
+
 import openai
-from openai import AzureOpenAI, OpenAI
-from dotenv import load_dotenv
-import base64
-import asyncio
 import streamlit as st
-from t2f_router import get_route_name
-from utils import azure_ocr_to_vectorize, token_counter, docx_to_pdf, data_chunker,retreiver,save_embeds_metadata,embeds_metadata_loader
-from prompt_creator import prompt_creator
+from dotenv import load_dotenv
+from openai import AzureOpenAI, OpenAI
+
 from hyperparams_handler import hyperparam_handler
+from prompt_creator import prompt_creator
+from t2f_router import get_route_name
+from utils import (
+    azure_ocr_to_vectorize,
+    data_chunker,
+    docx_to_pdf,
+    embeds_metadata_loader,
+    retreiver,
+    save_embeds_metadata,
+    token_counter,
+)
 
 load_dotenv()
 
@@ -120,7 +130,7 @@ def embeds_metadata_save(file_path):
 
 #     # add_vertical_space(20)
 #     # st.write("Made by RightHub AI 🔥")
-    
+
 # sidebar
 with st.sidebar:
     st.title("🤗💬 Talk to File")
@@ -130,20 +140,24 @@ with st.sidebar:
     if uploaded_pdf is not None:
         saved_file_path = save_file(uploaded_pdf)
         # Check if the current file has been processed already
-        if "file_processed" not in st.session_state or st.session_state["file_processed"] != uploaded_pdf.name:
-           
+        if (
+            "file_processed" not in st.session_state
+            or st.session_state["file_processed"] != uploaded_pdf.name
+        ):
             with st.spinner("Uploading and Reading PDF..."):
                 file_uuid = embeds_metadata_save(saved_file_path)
             # Update the session state to indicate this file has been processed
             st.session_state["file_processed"] = uploaded_pdf.name
             st.session_state["file_uuid"] = file_uuid
-            st.session_state["df"], st.session_state["loaded_embeddings"] = embeds_metadata_loader(st.session_state["file_uuid"])
+            (
+                st.session_state["df"],
+                st.session_state["loaded_embeddings"],
+            ) = embeds_metadata_loader(st.session_state["file_uuid"])
 
-        
         st.markdown(
-                    "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
-                    unsafe_allow_html=True,
-            )
+            "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
+            unsafe_allow_html=True,
+        )
         displayPDF(saved_file_path)
     else:
         st.cache_data.clear()
@@ -152,6 +166,7 @@ with st.sidebar:
             del st.session_state["file_processed"]
         if "file_uuid" in st.session_state:
             del st.session_state["file_uuid"]
+
 
 def string_streamer(input_string: str):
     """
@@ -166,29 +181,25 @@ def string_streamer(input_string: str):
         time.sleep(0.03)
         yield stream_str
 
-def generative_streamer(prompt,hp,chunk_tokens):
 
-    if chunk_tokens <30000:
+def generative_streamer(prompt, hp, chunk_tokens):
+    if chunk_tokens < 30000:
         print(chunk_tokens)
         print(hp)
-    
+
         client = AzureOpenAI(
             azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
             api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY")
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
         )
         model_name = hp["model_name"]
 
-    elif chunk_tokens >30000 and chunk_tokens <120000:
-
-        client = OpenAI(
-                api_key = os.environ.get("OPENAI_API_KEY")
-            )
+    elif chunk_tokens > 30000 and chunk_tokens < 120000:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         model_name = "gpt-4-turbo-preview"
 
     else:
         st.error("Your file is too big. Supply a smaller file.")
-
 
     response = client.chat.completions.create(
         model=model_name,
@@ -213,37 +224,45 @@ def generative_streamer(prompt,hp,chunk_tokens):
 
 
 def generative_layer(question: str):
-    #hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
-    #df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
+    # hp, prompt = hyperparam_handler(file_text), prompt_creator(file_text, question)
+    # df, loaded_embeddings = embeds_metadata_loader(st.session_state["file_uuid"])
 
     route_name = get_route_name(question)
     print(route_name)
 
     if route_name == "chitchat" or route_name == "gratitude":
-        prompt = prompt_creator(route_name,question)
+        prompt = prompt_creator(route_name, question)
         hp = hyperparam_handler(route_name)
 
-        streamer = generative_streamer(prompt,hp,chunk_tokens=2000)
+        streamer = generative_streamer(prompt, hp, chunk_tokens=2000)
         for gen in streamer:
             yield gen
 
-    elif route_name == "sports_talk" or route_name == "politics_discussion" or route_name == "chunk_discussions" or route_name == "prompt_leaks":
-        streamer = string_streamer("My Appologies! I won't be able to answer this question.")
+    elif (
+        route_name == "sports_talk"
+        or route_name == "politics_discussion"
+        or route_name == "chunk_discussions"
+        or route_name == "prompt_leaks"
+    ):
+        streamer = string_streamer(
+            "My Appologies! I won't be able to answer this question."
+        )
         for str in streamer:
             yield str
 
     else:
-
-        df, loaded_embeddings = st.session_state["df"], st.session_state["loaded_embeddings"]
+        df, loaded_embeddings = (
+            st.session_state["df"],
+            st.session_state["loaded_embeddings"],
+        )
         route_name = get_route_name(question)
-        retreived_chunks = retreiver(question,loaded_embeddings,df)
+        retreived_chunks = retreiver(question, loaded_embeddings, df)
 
+        prompt, chunk_tokens = prompt_creator(route_name, question, retreived_chunks)
+        hp = hyperparam_handler(route_name, chunk_tokens)
+        # token_count = token_counter(file_text, "gpt-4")
 
-        prompt, chunk_tokens = prompt_creator(route_name,question,retreived_chunks)
-        hp = hyperparam_handler(route_name,chunk_tokens)
-        #token_count = token_counter(file_text, "gpt-4")
-
-        streamer = generative_streamer(prompt,hp,chunk_tokens)
+        streamer = generative_streamer(prompt, hp, chunk_tokens)
         for gen in streamer:
             yield gen
 
@@ -283,36 +302,34 @@ def generative_layer(question: str):
     #         full_reply_content += content
     #         time.sleep(0.03)
     #         yield full_reply_content
-                
 
+    # collected_messages = []
 
-        # collected_messages = []
+    # for chunk in response:
+    #     chunk_message = (
+    #         chunk["choices"][0]["delta"] if chunk["choices"] else ""
+    #     )  # extract the message
 
-        # for chunk in response:
-        #     chunk_message = (
-        #         chunk["choices"][0]["delta"] if chunk["choices"] else ""
-        #     )  # extract the message
+    #     # if not isinstance(chunk_message, str):
+    #     #     time.sleep(0.04)
+    #     #     yield chunk_message.get("content", "")
 
-        #     # if not isinstance(chunk_message, str):
-        #     #     time.sleep(0.04)
-        #     #     yield chunk_message.get("content", "")
+    #     collected_messages.append(chunk_message)
 
-        #     collected_messages.append(chunk_message)
+    #     full_reply_content = "".join(
+    #         [
+    #             m.get("content", "")
+    #             for m in collected_messages
+    #             if not isinstance(m, str)
+    #         ]
+    #     )
 
-        #     full_reply_content = "".join(
-        #         [
-        #             m.get("content", "")
-        #             for m in collected_messages
-        #             if not isinstance(m, str)
-        #         ]
-        #     )
+    #     time.sleep(0.02)
+    #     yield full_reply_content
 
-        #     time.sleep(0.02)
-        #     yield full_reply_content
+    # elif chunk_tokens > 30000 and chunk_tokens < 120000:
+    # if chunk_tokens <= 120000:
 
-    #elif chunk_tokens > 30000 and chunk_tokens < 120000:
-    # if chunk_tokens <= 120000: 
-        
     #     #print(os.environ.get("OPENAI_API_TYPE"), os.environ.get("OPENAI_API_BASE"),os.environ.get("OPENAI_API_KEY"))
     #     #openai.api_type = st.secrets["OPENAI_API_TYPE"]
     #     openai.api_type = os.environ.get("OPENAI_API_TYPE")
@@ -321,7 +338,7 @@ def generative_layer(question: str):
     #     openai.api_version = None
     #     #openai.api_key = st.secrets["OPENAI_API_KEY"]
     #     openai.api_key = os.environ.get("OPENAI_API_KEY")
-        
+
     #     response = openai.ChatCompletion.create(
     #         model="gpt-4-1106-preview",
     #         messages=prompt,
@@ -359,9 +376,8 @@ def generative_layer(question: str):
 
 def main():
     if uploaded_pdf is not None:
-
         if "messages" not in st.session_state:
-                st.session_state.messages = []
+            st.session_state.messages = []
 
         if st.session_state.messages:
             for message in st.session_state.messages:
@@ -369,9 +385,7 @@ def main():
                     st.markdown(message["content"])
 
         if user_message := st.chat_input("Ask a question?"):
-            st.session_state.messages.append(
-                    {"role": "user", "content": user_message}
-            )
+            st.session_state.messages.append({"role": "user", "content": user_message})
             with st.chat_message("user"):
                 st.markdown(user_message)
 
@@ -381,44 +395,40 @@ def main():
                     gen_iter = generative_layer(user_message)
 
                     for gen in gen_iter:
+                        print(gen)
                         message_placeholder.markdown(f"{gen}" + "|")
                     message_placeholder.markdown(gen)
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen}
-                    )    
+                    )
     else:
         for key in st.session_state.keys():
             del st.session_state[key]
 
-            
+        # token_count = token_counter(pdf_text, "gpt-4")
+        # if token_count >= 120000:
+        # st.error("Your file is too big. Please upload a smaller file.")
+        # else:
+
+        # if user_message := st.chat_input("Ask a question?"):
+        #     st.session_state.messages.append(
+        #         {"role": "user", "content": user_message}
+        #     )
+        #     with st.chat_message("user"):
+        #         st.markdown(user_message)
+
+        #     with st.spinner("Generating Response"):
+        #         with st.chat_message("assistant"):
+        #             message_placeholder = st.empty()
+        #             gen_iter = generative_layer(pdf_text, user_message)
+
+        #             for gen in gen_iter:
+        #                 message_placeholder.markdown(f"{gen}" + "|")
+        #             message_placeholder.markdown(gen)
+        #             st.session_state.messages.append(
+        #                 {"role": "assistant", "content": gen}
+        #             )
 
 
-        #token_count = token_counter(pdf_text, "gpt-4")
-        #if token_count >= 120000:
-            #st.error("Your file is too big. Please upload a smaller file.")
-        #else:
-            
-
-            
-
-            # if user_message := st.chat_input("Ask a question?"):
-            #     st.session_state.messages.append(
-            #         {"role": "user", "content": user_message}
-            #     )
-            #     with st.chat_message("user"):
-            #         st.markdown(user_message)
-
-            #     with st.spinner("Generating Response"):
-            #         with st.chat_message("assistant"):
-            #             message_placeholder = st.empty()
-            #             gen_iter = generative_layer(pdf_text, user_message)
-
-            #             for gen in gen_iter:
-            #                 message_placeholder.markdown(f"{gen}" + "|")
-            #             message_placeholder.markdown(gen)
-            #             st.session_state.messages.append(
-            #                 {"role": "assistant", "content": gen}
-            #             )
-    
 if __name__ == "__main__":
     main()

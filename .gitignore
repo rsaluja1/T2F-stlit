@@ -166,3 +166,4 @@ data
 test.py
 test_embedding.py
 test_anthropic.py
+test-2.py
