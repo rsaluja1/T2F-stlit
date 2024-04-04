@@ -1,18 +1,9 @@
 TALK_TO_FILE:
-  model: right-co-pilot-gpt4-8k
-  model_32k: right-co-pilot-32k
+  model: claude-3-opus-20240229
   temperature: 0.5
   max_tokens: 1500
-  top_p: 1.0
-  frequency_penalty: 0.0
-  presense_penalty: 0.0
-  stop_sequences: ["<END>"]
 
 TALK_TO_FILE_CHITCHAT:
-  model: right-co-pilot-gpt4-8k
+  model: claude-3-sonnet-20240229
   temperature: 0.5
   max_tokens: 256
-  top_p: 1.0
-  frequency_penalty: 0.0
-  presense_penalty: 0.0
-  stop_sequences: ["<END>"]

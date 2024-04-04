@@ -1,4 +1,5 @@
 import asyncio
+import anthropic
 import base64
 import os
 import time
@@ -182,45 +183,55 @@ def string_streamer(input_string: str):
         yield stream_str
 
 
-def generative_streamer(prompt, hp, chunk_tokens):
+def generative_streamer(prompt_system,prompt_messages,hp, chunk_tokens):
     if chunk_tokens < 30000:
         print(chunk_tokens)
         print(hp)
+        
 
-        client = AzureOpenAI(
-            azure_endpoint=os.environ.get("AZURE_ENDPOINT"),
-            api_version=os.environ.get("AZURE_OPENAI_API_VERSION"),
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
-        )
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         model_name = hp["model_name"]
 
     elif chunk_tokens > 30000 and chunk_tokens < 120000:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        model_name = "gpt-4-turbo-preview"
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        model_name = hp["model_name"]
 
     else:
         st.error("Your file is too big. Supply a smaller file.")
 
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=prompt,
-        temperature=hp["temperature"],
-        max_tokens=hp["max_tokens"],
-        top_p=hp["top_p"],
-        frequency_penalty=hp["frequency_penalty"],
-        presence_penalty=hp["presense_penalty"],
-        stop=hp["stop_sequences"],
-        stream=True,
-    )
-
     full_reply_content = ""
 
-    for chunk in response:
-        if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
-            content = chunk.choices[0].delta.content
+    with client.messages.stream(
+    max_tokens=1024,
+    system=prompt_system,
+    messages=prompt_messages,
+    model=model_name,
+) as stream:
+        for content in stream.text_stream:
             full_reply_content += content
             time.sleep(0.02)
             yield full_reply_content
+
+    # response = client.chat.completions.create(
+    #     model=model_name,
+    #     messages=prompt,
+    #     temperature=hp["temperature"],
+    #     max_tokens=hp["max_tokens"],
+    #     top_p=hp["top_p"],
+    #     frequency_penalty=hp["frequency_penalty"],
+    #     presence_penalty=hp["presense_penalty"],
+    #     stop=hp["stop_sequences"],
+    #     stream=True,
+    # )
+
+    # full_reply_content = ""
+
+    # for chunk in response:
+    #     if len(chunk.choices) > 0 and chunk.choices[0].delta.content is not None:
+    #         content = chunk.choices[0].delta.content
+    #         full_reply_content += content
+    #         time.sleep(0.02)
+    #         yield full_reply_content
 
 
 def generative_layer(question: str):
@@ -258,11 +269,11 @@ def generative_layer(question: str):
         route_name = get_route_name(question)
         retreived_chunks = retreiver(question, loaded_embeddings, df)
 
-        prompt, chunk_tokens = prompt_creator(route_name, question, retreived_chunks)
+        prompt_system, prompt_messages, chunk_tokens = prompt_creator(route_name, question, retreived_chunks)
         hp = hyperparam_handler(route_name, chunk_tokens)
         # token_count = token_counter(file_text, "gpt-4")
 
-        streamer = generative_streamer(prompt, hp, chunk_tokens)
+        streamer = generative_streamer(prompt_system,prompt_messages,hp,chunk_tokens)
         for gen in streamer:
             yield gen
 

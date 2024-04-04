@@ -10,34 +10,36 @@ def prompt_creator(route_name: str, user_query: str, retreived_chunks: str = Non
     
     if route_name == "chitchat" or route_name == "gratitude":
 
-        prompt_file = "talk_to_file_chitchat.yaml"
+        prompt_file = "talk_to_file_chitchat_anthropic.yaml"
         prompt_path = os.path.join(dirname, parent_prompt_path, prompt_file)
 
-        prompt = read_yaml_file(prompt_path)["TALK_TO_FILE_CHITCHAT"]
+        prompt_system = read_yaml_file(prompt_path)["TALK_TO_FILE_CHITCHAT"]["SYSTEM"]
+        prompt_messages = read_yaml_file(prompt_path)["TALK_TO_FILE_CHITCHAT"]["MESSAGES"]
 
-        for item in prompt:
+        for item in prompt_messages:
             if 'content' in item:
                 item['content'] = item['content'].replace('<<user_query>>',f"{user_query}")
 
-        return prompt
+        return prompt_system, prompt_messages
     
     else:
-        prompt_file = "talk_to_file_prompts-ivan-new-ref-tests.yaml"
+        prompt_file = "talk_to_file_new_anthopic.yaml"
         prompt_path = os.path.join(dirname, parent_prompt_path, prompt_file)
         
-        prompt = read_yaml_file(prompt_path)["TALK_TO_FILE_REFERENCING"]
+        prompt_system = read_yaml_file(prompt_path)["TALK_TO_FILE_REFERENCING"]["SYSTEM"]
+        prompt_messages = read_yaml_file(prompt_path)["TALK_TO_FILE_REFERENCING"]["MESSAGES"]
         # prompt = prompt.replace("<<file_text>>", f"{file_text}").replace(
         #         "<<user_question>>", f"{question}"
         #     )
         #retreived_chunks = retreiver(question)
         chunk_tokens = token_counter(retreived_chunks,model_name="gpt-4")
 
-        for item in prompt:
+        for item in prompt_messages:
             if 'content' in item:
                 item['content'] = item['content'].replace('<<retrieved_chunks>>', f"{retreived_chunks}")
                 item['content'] = item['content'].replace('<<user_question>>',f"{user_query}")
                 
-        return prompt, chunk_tokens
+        return prompt_system, prompt_messages, chunk_tokens
 
 
 #if __name__ == "__main__":
@@ -51,4 +53,4 @@ def prompt_creator(route_name: str, user_query: str, retreived_chunks: str = Non
     # print(prompt_creator(question))
 
     # file_text = read_pdf("temp_data/managing_ai_risks.pdf")
-    # # question = "Who is the author?" 
+    # # question = "Who is the author?"
