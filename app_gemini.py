@@ -61,6 +61,14 @@ st.markdown(
 #     return file_path
 # from PyPDF2 import PdfFileMerger
 
+
+def clear_chat():
+    """
+    Clears the chat history by removing all keys from the session state.
+    """
+    for key in st.session_state.keys():
+        del st.session_state[key]
+
 @st.cache_data
 def save_files(uploaded_files):
 
@@ -83,6 +91,8 @@ def save_files(uploaded_files):
         file_paths.append(file_path)
 
     print(f"These are the file paths: {file_paths} ")
+    clear_chat()
+    
     return file_paths
 
 
@@ -206,7 +216,7 @@ def generative_layer(file_text: str, question: str):
 
 def main():
     if uploaded_pdfs:
-        
+
         with st.spinner("Uploading and Reading PDF..."):
             file_paths = save_files(uploaded_pdfs)
             pdf_text = pdf_reader(file_paths)
@@ -234,10 +244,8 @@ def main():
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen_response}
                     )
-
         else:
-            for key in st.session_state.keys():
-                del st.session_state[key]
+            clear_chat()
 
 
                 
