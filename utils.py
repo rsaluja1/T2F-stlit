@@ -4,9 +4,7 @@ import tiktoken
 import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
-from PyPDF2 import PdfReader, PdfWriter
-from vertexai.generative_models import GenerativeModel, Content
-
+from PyPDF2 import PdfReader
 
 azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.getenv("AZURE_SECRET_KEY")
@@ -41,30 +39,28 @@ def read_pdf(input_file_path: str):
     """
 
     reader = PdfReader(input_file_path)
-    pdf_text = ""
+
+    extract_pages = []
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
-        if len(extracted_page) > 0:
-            pdf_text += extracted_page
+        extract_pages.append(extracted_page)
 
-    extracted_text = azure_ocr(input_file_path) if not pdf_text else pdf_text
-    clean_extracted_text = extracted_text.replace("\0", "")
-    return clean_extracted_text
+    less_than_100_chars = any(len(element) < 100 for element in extract_pages)
 
-def token_counter_gemini(model: GenerativeModel, contents: Content) -> int:
-    #go-async
+    if not less_than_100_chars:
+        parsed_text = " ".join(extract_pages)
+        return parsed_text
+    else:
+        extracted_text = azure_ocr(input_file_path)
+        clean_extracted_text = extracted_text.replace("\0", "")
+        return clean_extracted_text
+
+
+def token_counter(string: str, model_name: str) -> int:
     """Returns the number of tokens in a text string."""
-
-    counter = model.count_tokens(contents=contents)
-    #billable_chars = counter["total_billable_characters"]
-
-    return counter.total_tokens
-
-# def token_counter() -> int:
-#     """Returns the number of tokens in a text string."""
-#     encoding = tiktoken.encoding_for_model(f"{model_name}")
-#     num_tokens = len(encoding.encode(string))
-#     return num_tokens
+    encoding = tiktoken.encoding_for_model(f"{model_name}")
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 
 def azure_ocr(input_file_path: str):
@@ -86,7 +82,8 @@ def azure_ocr(input_file_path: str):
 
     return results_dict["content"]
 
-def docx_to_pdf(input_path: str) -> str:
+
+def docx_to_pdf(input_path: str) -> str | None:
     """
     Converts a DOCX file to a PDF file using LibreOffice's command-line interface.
 
@@ -124,4 +121,3 @@ def docx_to_pdf(input_path: str) -> str:
         return output_path  # Return the full path of the output PDF
     except subprocess.CalledProcessError:
         return None
-
