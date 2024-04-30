@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from models.T2F import MultiFileQAItems
 from process_generation import GenerativeLayer
 
-from utils import docx_to_pdf
+from utils import docx_to_pdf, read_pdf
 
 load_dotenv()
 
@@ -97,10 +97,8 @@ def pdf_reader(file_paths):
     for file_path in file_paths:
         file_dict = {"file_id": str(uuid.uuid4()),
                      "file_name": os.path.basename(file_path),
-                     "file_url": file_path
+                     "file_text": read_pdf(file_path)
                      }
-        print(type(file_dict["file_id"]))
-        print(file_dict["file_id"])
         plain_text_files_list.append(file_dict)
 
     return plain_text_files_list
@@ -126,11 +124,11 @@ async def talk_to_multiple_files(prompt: MultiFileQAItems):
 
     # Concurrently send the question & the whole text of each file to Anthropic
     for file in prompt.plain_text_files_list:
-        file_id, file_name, file_url = file.values()
+        file_id, file_name, file_text = file.values()
 
         answers_func_list.append(GenerativeLayer.process_get_anthropic_answer(file_id,
                                                                               file_name,
-                                                                              file_url,
+                                                                              file_text,
                                                                               prompt.question))
 
     # Gather the answers from Anthropic in a list
@@ -138,6 +136,7 @@ async def talk_to_multiple_files(prompt: MultiFileQAItems):
 
     # Convert Anthropic Answers to a single string for use in Final Cognition Layer with GPT-4
     anthropic_answers_str = ''.join(anthropic_answers)
+    print(anthropic_answers)
 
     return await GenerativeLayer.process_ttmf_final_answer(anthropic_answers_str, prompt.question)
 

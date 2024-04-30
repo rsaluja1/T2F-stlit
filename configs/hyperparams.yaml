@@ -10,7 +10,7 @@ TALK_TO_FILE_CHITCHAT:
 GET_ANTHROPIC_ANSWER:
   model: claude-3-sonnet-20240229
   max_tokens: 400
-  temperature: 0.5
+  temperature: 0.0
   stop_sequences: ["<END>"]
 
 TALK_TO_MULTIPLE_FILES:

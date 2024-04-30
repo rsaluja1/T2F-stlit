@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from hyperparams_handler import HyperparamsHandler
 from prompt_creator import PromptCreator
 from t2f_router import get_route_name
-from utils import token_counter, read_pdf
+from utils import token_counter
 
 load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -64,10 +64,8 @@ class GenerativeLayer:
             raise HTTPException(status_code=500, detail=f"Anthropic call failed: {str(e)}")
 
     @staticmethod
-    async def process_get_anthropic_answer(file_id: str, file_name: str, file_url: str, question: str) -> str:
+    async def process_get_anthropic_answer(file_id: str, file_name: str, file_text: str, question: str) -> str:
         """Process a generative layer request for an Answer from Anthropic using the full file_text & question"""
-
-        file_text = read_pdf(file_url)
 
         hp, prompt = (HyperparamsHandler.handle_get_anthropic_answer(),
                       PromptCreator.create_get_anthropic_answer(file_text, question))

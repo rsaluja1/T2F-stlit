@@ -5,7 +5,9 @@ import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
+from dotenv import load_dotenv
 
+load_dotenv()
 azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.getenv("AZURE_SECRET_KEY")
 
