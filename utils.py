@@ -41,15 +41,20 @@ def read_pdf(input_file_path: str):
     """
 
     reader = PdfReader(input_file_path)
-    pdf_text = ""
+    extract_pages = []
     for i in range(len(reader.pages)):
         extracted_page = reader.pages[i].extract_text()
-        if len(extracted_page) > 0:
-            pdf_text += extracted_page
+        extract_pages.append(extracted_page)
 
-    extracted_text = azure_ocr(input_file_path) if not pdf_text else pdf_text
-    clean_extracted_text = extracted_text.replace("\0", "")
-    return clean_extracted_text
+    less_than_100_chars = any(len(element) < 100 for element in extract_pages)
+
+    if not less_than_100_chars:
+        parsed_text = " ".join(extract_pages)
+        return parsed_text
+    else:
+        extracted_text = azure_ocr(input_file_path)
+        clean_extracted_text = extracted_text.replace("\0", "")
+        return clean_extracted_text
 
 def token_counter_gemini(model: GenerativeModel, contents: Content) -> int:
     #go-async
