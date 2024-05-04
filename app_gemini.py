@@ -263,7 +263,6 @@ def main():
             with st.spinner("Generating Response"):
                 with st.chat_message("assistant"):
                     user_message_post = query_postprocessing(user_message, file_names)
-                    print(f"This is user message {user_message_post}")
                     gen_response = generative_layer(pdf_text, user_message_post)
                     st.write(gen_response)
                     st.session_state.messages.append(
