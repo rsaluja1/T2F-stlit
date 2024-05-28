@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import openai
 import base64
@@ -6,7 +7,7 @@ import asyncio
 import vertexai
 import streamlit as st
 from dotenv import load_dotenv
-
+from typing import List
 from hyperparams_handler import hyperparam_handler
 from prompt_creator import prompt_creator
 from t2f_router import get_route_name
@@ -68,6 +69,23 @@ def clear_chat():
     """
     for key in st.session_state.keys():
         del st.session_state[key]
+
+def query_postprocessing(query: str, file_names: List[str]) -> str:
+
+    query_clean = re.sub(r'\?', '', query)
+    query_post = query_clean + (f" in {file_names}?" if "?" in query  else f" in {file_names}")
+
+    return query_post
+
+def extract_file_names(uploaded_files) -> List[str]:
+
+    uploaded_file_names = []
+    for uploaded_file in uploaded_files:
+        uploaded_file_name = uploaded_file.name
+        uploaded_file_names.append(uploaded_file_name)
+    
+    return uploaded_file_names
+
 
 @st.cache_data
 def save_files(uploaded_files):
@@ -148,7 +166,8 @@ def pdf_reader(file_paths):
     files_text = ""
 
     for file_path in file_paths:
-        filename = os.path.basename(file_path).replace(".pdf", "")
+        #filename = os.path.basename(file_path).replace(".pdf", "")
+        filename = os.path.basename(file_path)
         file_text = read_pdf(file_path)
 
         #text_prep = f"FILE NAME: {filename}\nFILE TEXT: {pdf_text}\n----END OF FILE----\n\n"
@@ -204,6 +223,8 @@ def gemini_response(system_prompt:str,prompt_messages:Content,generation_config:
 
 def generative_layer(file_text: str, question: str):
     #token_count = token_counter_gemini(file_text)
+    ##question post-processing
+
     route_name = get_route_name(question)
     print(route_name)
 
@@ -218,6 +239,8 @@ def main():
     if uploaded_pdfs:
 
         with st.spinner("Uploading and Reading PDF..."):
+            file_names = extract_file_names(uploaded_pdfs)
+            print(file_names)
             file_paths = save_files(uploaded_pdfs)
             pdf_text = pdf_reader(file_paths)
 
@@ -239,7 +262,8 @@ def main():
                 
             with st.spinner("Generating Response"):
                 with st.chat_message("assistant"):
-                    gen_response = generative_layer(pdf_text, user_message)
+                    user_message_post = query_postprocessing(user_message, file_names)
+                    gen_response = generative_layer(pdf_text, user_message_post)
                     st.write(gen_response)
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen_response}
