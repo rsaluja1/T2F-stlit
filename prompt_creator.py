@@ -24,7 +24,8 @@ def prompt_creator(route_name: str, file_text: str):
         return prompt_system, prompt_messages
 
     else:
-        prompt_file = "talk_to_multiple_files_gemini.yaml"
+        # prompt_file = "talk_to_multiple_files_gemini.yaml"
+        prompt_file = "talk_to_multiple_files_gemini copy.yaml"
         prompt_path = os.path.join(dirname, parent_prompt_path, prompt_file)
 
         prompt_system, prompt_messages = (
