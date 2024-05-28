@@ -1,6 +1,8 @@
 import os
 import re
 import time
+import uuid
+
 import openai
 import base64
 import asyncio
@@ -47,6 +49,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 # @st.cache_data
 # def save_file(uploaded_file):
 #     uploaded_file_name = uploaded_file.name
@@ -87,9 +90,9 @@ def extract_file_names(uploaded_files) -> List[str]:
     return uploaded_file_names
 
 
+
 @st.cache_data
 def save_files(uploaded_files):
-
     uploaded_file_names = []
     file_paths = []
 
@@ -110,11 +113,8 @@ def save_files(uploaded_files):
 
     print(f"These are the file paths: {file_paths} ")
     clear_chat()
-    
+
     return file_paths
-
-
-
 
 
 # @st.cache_data
@@ -145,8 +145,7 @@ def save_files(uploaded_files):
 #     return merged_file_path
 
 
-
-#display come back
+# display come back
 @st.cache_data
 def displayPDF(uploaded_files):
     for uploaded_file in uploaded_files:
@@ -156,12 +155,10 @@ def displayPDF(uploaded_files):
         base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
-    
 
 
 @st.cache_data
 def pdf_reader(file_paths):
-
     text_prep = ""
     files_text = ""
 
@@ -170,43 +167,46 @@ def pdf_reader(file_paths):
         filename = os.path.basename(file_path)
         file_text = read_pdf(file_path)
 
-        #text_prep = f"FILE NAME: {filename}\nFILE TEXT: {pdf_text}\n----END OF FILE----\n\n"
+        # text_prep = f"FILE NAME: {filename}\nFILE TEXT: {pdf_text}\n----END OF FILE----\n\n"
 
         text_prep = "\n".join([
-        f"FILE NAME: {filename}",
-        f"FILE TEXT: {file_text}",
-        "----END OF FILE----",
-        ""
+            f"FILE NAME: {filename}",
+            f"FILE ID: {str(uuid.uuid4())}",
+            f"FILE TEXT: {file_text}",
+            "----END OF FILE----",
+            ""
         ])
 
-        files_text+= text_prep
+        files_text += text_prep
 
     return files_text
+
 
 # sidebar
 with st.sidebar:
     st.title("🤗💬 Talk to File")
     # Upload PDF file
-    uploaded_pdfs = st.file_uploader("Upload your PDF", type=["pdf"], accept_multiple_files =True)
+    uploaded_pdfs = st.file_uploader("Upload your PDF", type=["pdf"], accept_multiple_files=True)
     if uploaded_pdfs:
         st.markdown(
             "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
             unsafe_allow_html=
             True,
         )
-        #print(uploaded_pdfs)
+        # print(uploaded_pdfs)
         displayPDF(uploaded_pdfs)
 
-def gemini_response(system_prompt:str,prompt_messages:Content,generation_config:GenerationConfig, question: str):
+
+def gemini_response(system_prompt: str, prompt_messages: Content, generation_config: GenerationConfig, question: str):
     vertexai.init(project="dev-envc52ce870", location="europe-north1")
 
-    #load the model
+    # load the model
     model = GenerativeModel(
-    "gemini-1.5-pro-preview-0409",
-    system_instruction=[system_prompt],
-    generation_config=generation_config
-  )
-    #print(prompt_messages)
+        "gemini-1.5-pro-preview-0409",
+        system_instruction=[system_prompt],
+        generation_config=generation_config
+    )
+    # print(prompt_messages)
 
     contents = prompt_messages
     contents = [Content.from_dict(x) for x in contents]
@@ -215,22 +215,23 @@ def gemini_response(system_prompt:str,prompt_messages:Content,generation_config:
     chat = model.start_chat(history=contents)
 
     response = chat.send_message(
-    user_input,
-    stream=False
+        user_input,
+        stream=False
     )
 
     return response.text
 
+
 def generative_layer(file_text: str, question: str):
-    #token_count = token_counter_gemini(file_text)
+    # token_count = token_counter_gemini(file_text)
     ##question post-processing
 
     route_name = get_route_name(question)
     print(route_name)
 
-    generation_config = hyperparam_handler(route_name) 
+    generation_config = hyperparam_handler(route_name)
     prompt_system, prompt_messages = prompt_creator(route_name, file_text)
-    response = gemini_response(prompt_system, prompt_messages,generation_config, question)
+    response = gemini_response(prompt_system, prompt_messages, generation_config, question)
 
     return response
 
@@ -259,7 +260,7 @@ def main():
 
             with st.chat_message("user"):
                 st.markdown(user_message)
-                
+
             with st.spinner("Generating Response"):
                 with st.chat_message("assistant"):
                     user_message_post = query_postprocessing(user_message, file_names)
@@ -272,7 +273,5 @@ def main():
             clear_chat()
 
 
-                
-
 if __name__ == "__main__":
-   main()
+    main()
