@@ -79,7 +79,7 @@ def save_files(uploaded_files):
         file_paths.append(file_path)
 
     print(f"These are the file paths: {file_paths} ")
-    clear_chat()
+    #clear_chat()
 
     return file_paths
 
@@ -94,6 +94,14 @@ def displayPDF(uploaded_files):
         base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
+
+@st.cache_data
+def vector_store_create(_openai_client, file_paths):
+    vector_id = create_vector_store(_openai_client, file_paths)
+
+    print(f"I am being run {vector_id}")
+    
+    return vector_id
 
 
 # sidebar
@@ -150,10 +158,18 @@ def main():
         with st.spinner("Uploading and Reading PDF..."):
 
             file_paths = save_files(uploaded_pdfs)
-            vector_store_id = create_vector_store(openai_client, file_paths)
+            vector_store_id = vector_store_create(openai_client, file_paths)
+
+        if "vector_store_id" not in st.session_state:
+            st.session_state["vector_store_id"] = vector_store_id
 
         if "messages" not in st.session_state:
             st.session_state.messages = []
+
+        # if st.session_state.vector_store_id:
+        #     st.session_state.vector_store_id.append({"vector_store_id":vector_store_id})
+
+        print(st.session_state)
 
         if st.session_state.messages:
             for message in st.session_state.messages:
@@ -175,10 +191,15 @@ def main():
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen_response}
                     )
+
     else:
+        if "vector_store_id" in st.session_state:
+            delete_vector_store(openai_client, st.session_state["vector_store_id"])
+            print(f'Vector Store deleted')
         clear_chat()
-        delete_vector_store(openai_client, vector_store_id)
-        print(f'Vector Store {vector_store_id} deleted')
+
+        
+            
 
 
 if __name__ == "__main__":
