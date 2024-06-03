@@ -5,7 +5,7 @@ import base64
 import streamlit as st
 from dotenv import load_dotenv
 
-from assistant import create_vector_store, create_thread
+from assistant import create_vector_store, create_thread, delete_vector_store
 from t2f_router import get_route_name
 
 from utils import read_pdf, docx_to_pdf
@@ -111,10 +111,8 @@ with st.sidebar:
         displayPDF(uploaded_pdfs)
 
 
-def assistant_response(file_paths, user_question):
+def assistant_response(file_paths, user_question, vector_store_id):
     assistant_id = "asst_fEH4yyo9gArp3vx7DNNxPLZS"
-
-    vector_store_id = create_vector_store(openai_client, file_paths)
 
     # Update the assistant with the vector_store_id
     assistant = openai_client.beta.assistants.update(
@@ -152,6 +150,7 @@ def main():
         with st.spinner("Uploading and Reading PDF..."):
 
             file_paths = save_files(uploaded_pdfs)
+            vector_store_id = create_vector_store(openai_client, file_paths)
 
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -171,14 +170,15 @@ def main():
 
             with st.spinner("Generating Response"):
                 with st.chat_message("assistant"):
-
-                    gen_response = assistant_response(file_paths, user_message)
+                    gen_response, citations = assistant_response(file_paths, user_message, vector_store_id)
                     st.write(gen_response)
                     st.session_state.messages.append(
                         {"role": "assistant", "content": gen_response}
                     )
-        else:
-            clear_chat()
+    else:
+        clear_chat()
+        delete_vector_store(openai_client, vector_store_id)
+        print(f'Vector Store {vector_store_id} deleted')
 
 
 if __name__ == "__main__":

@@ -33,3 +33,8 @@ def create_thread(openai_client, user_question):
     )
 
     return thread.id
+
+
+def delete_vector_store(openai_client, vector_store_id):
+    # Delete the vector store
+    openai_client.beta.vector_stores.delete(vector_store_id=vector_store_id)
