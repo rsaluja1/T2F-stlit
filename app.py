@@ -79,7 +79,7 @@ def save_files(uploaded_files):
         file_paths.append(file_path)
 
     print(f"These are the file paths: {file_paths} ")
-    #clear_chat()
+    # clear_chat()
 
     return file_paths
 
@@ -95,12 +95,13 @@ def displayPDF(uploaded_files):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800px" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
+
 @st.cache_data
 def vector_store_create(_openai_client, file_paths):
     vector_id = create_vector_store(_openai_client, file_paths)
 
     print(f"I am being run {vector_id}")
-    
+
     return vector_id
 
 
@@ -108,7 +109,7 @@ def vector_store_create(_openai_client, file_paths):
 with st.sidebar:
     st.title("🤗💬 Talk to File")
     # Upload PDF file
-    uploaded_pdfs = st.file_uploader("Upload your PDF", type=["pdf"], accept_multiple_files=True)
+    uploaded_pdfs = st.file_uploader("Upload your PDF", type=["pdf", "docx"], accept_multiple_files=True)
     if uploaded_pdfs:
         st.markdown(
             "<h3 style= 'text-align:center; color: white;'> PDF Preview </h2>",
@@ -166,9 +167,6 @@ def main():
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        # if st.session_state.vector_store_id:
-        #     st.session_state.vector_store_id.append({"vector_store_id":vector_store_id})
-
         print(st.session_state)
 
         if st.session_state.messages:
@@ -187,9 +185,9 @@ def main():
             with st.spinner("Generating Response"):
                 with st.chat_message("assistant"):
                     gen_response, citations = assistant_response(file_paths, user_message, vector_store_id)
-                    st.write(gen_response)
+                    st.markdown(f'{gen_response} <br> <b>References:</b> <br> {citations}', unsafe_allow_html=True)
                     st.session_state.messages.append(
-                        {"role": "assistant", "content": gen_response}
+                        {"role": "assistant", "content": f'{gen_response} \n References: {citations}'}
                     )
 
     else:
@@ -197,9 +195,6 @@ def main():
             delete_vector_store(openai_client, st.session_state["vector_store_id"])
             print(f'Vector Store deleted')
         clear_chat()
-
-        
-            
 
 
 if __name__ == "__main__":
