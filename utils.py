@@ -51,6 +51,7 @@ def read_pdf(input_file_path: str):
 
     if not less_than_100_chars:
         parsed_text = " ".join(extract_pages)
+        print(f'This file was already OCRd')
         return parsed_text
     else:
         extracted_text = azure_ocr(input_file_path)
@@ -112,7 +113,7 @@ def docx_to_pdf(input_path: str) -> str:
         input_path
     )  # Extracts the directory from the input path
     output_filename = os.path.splitext(os.path.basename(input_path))[0] + ".pdf"
-    output_path = os.path.join(output_directory, output_filename)
+    output_path = f"{output_directory}/" + output_filename
 
     try:
         subprocess.run(
