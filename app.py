@@ -62,15 +62,21 @@ def save_files(uploaded_files):
 
         # with open(file_path, "wb") as temp_file:
         #     temp_file.write(uploaded_file.getvalue())
+        # Save the uploaded file to disk
+        temp_file_path = os.path.join(temp_folder_path, uploaded_file_name)
+        with open(temp_file_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
 
         if uploaded_file_name.endswith(".docx"):
-            file_path = docx_to_pdf(file_path)
+            file_path = docx_to_pdf(temp_file_path)
 
         elif uploaded_file_name.endswith(".pdf"):
             print(uploaded_file)
             print(uploaded_file_name)
-            file_text = read_pdf(uploaded_file)
-            print(file_text)
+
+            # Pass the file path to read_pdf
+            file_text = read_pdf(temp_file_path)
+
             with open(file_path, "wb") as temp_file:
                 temp_file.write(file_text.encode('utf-8'))
         else:
@@ -138,14 +144,17 @@ def assistant_response(file_paths, user_question, vector_store_id):
 
     message_content = messages[0].content[0].text
     annotations = message_content.annotations
-    citations = []
+    # citations = []
+    citations_set = set()
     for index, annotation in enumerate(annotations):
         message_content.value = message_content.value.replace(annotation.text, f"[{index}]")
         if file_citation := getattr(annotation, "file_citation", None):
             cited_file = openai_client.files.retrieve(file_citation.file_id)
-            citations.append(f"[{index}] {cited_file.filename}")
+            # citations.append(f"[{index}] {cited_file.filename}")
+            citations_set.add(f"{cited_file.filename}")
 
-    citations_final = "\n".join(citations)
+    citations_final = ", ".join(citations_set)
+    print(messages)
 
     # Delete the used thread
     openai_client.beta.threads.delete(thread_id=thread_id)

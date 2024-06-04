@@ -56,6 +56,7 @@ def read_pdf(input_file_path: str):
     else:
         extracted_text = azure_ocr(input_file_path)
         clean_extracted_text = extracted_text.replace("\0", "")
+        print(f'This file is OCRd with Azure')
         return clean_extracted_text
 
 def token_counter_gemini(model: GenerativeModel, contents: Content) -> int:
