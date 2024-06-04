@@ -5,7 +5,6 @@ import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
-from vertexai.generative_models import GenerativeModel, Content
 from dotenv import load_dotenv
 
 load_dotenv()
