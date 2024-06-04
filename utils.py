@@ -58,21 +58,6 @@ def read_pdf(input_file_path: str):
         print(f'This file is OCRd with Azure')
         return clean_extracted_text
 
-def token_counter_gemini(model: GenerativeModel, contents: Content) -> int:
-    #go-async
-    """Returns the number of tokens in a text string."""
-
-    counter = model.count_tokens(contents=contents)
-    #billable_chars = counter["total_billable_characters"]
-
-    return counter.total_tokens
-
-# def token_counter() -> int:
-#     """Returns the number of tokens in a text string."""
-#     encoding = tiktoken.encoding_for_model(f"{model_name}")
-#     num_tokens = len(encoding.encode(string))
-#     return num_tokens
-
 
 def azure_ocr(input_file_path: str):
     # Set up Azure OCR client
