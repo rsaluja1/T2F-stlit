@@ -6,7 +6,6 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from assistant import create_vector_store, create_thread, delete_vector_store
-from t2f_router import get_route_name
 
 from utils import read_pdf, docx_to_pdf
 

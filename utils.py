@@ -1,11 +1,9 @@
 import os
 import yaml
-import tiktoken
 import subprocess
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from PyPDF2 import PdfReader
-from vertexai.generative_models import GenerativeModel, Content
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -59,15 +57,6 @@ def read_pdf(input_file_path: str):
         print(f'This file is OCRd with Azure')
         return clean_extracted_text
 
-def token_counter_gemini(model: GenerativeModel, contents: Content) -> int:
-    #go-async
-    """Returns the number of tokens in a text string."""
-
-    counter = model.count_tokens(contents=contents)
-    #billable_chars = counter["total_billable_characters"]
-
-    return counter.total_tokens
-
 # def token_counter() -> int:
 #     """Returns the number of tokens in a text string."""
 #     encoding = tiktoken.encoding_for_model(f"{model_name}")
@@ -93,6 +82,7 @@ def azure_ocr(input_file_path: str):
     results_dict = ocr_results.to_dict()
 
     return results_dict["content"]
+
 
 def docx_to_pdf(input_path: str) -> str:
     """
